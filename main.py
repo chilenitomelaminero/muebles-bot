@@ -2,18 +2,22 @@ import os
 import io
 import json
 import requests
+import time
 from PIL import Image
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2 import service_account
 import google.generativeai as genai
 
+# CONFIGURACIÓN DE IDs
 ID_CARPETA_LOGO = "1EKyQ0HCDd2gp89_0FAdGClZ9KO3fvcUN"
 ID_PUBLICACIONES = "1ajUOSc3fw52khPvXF2XgVF77soWCwT1z"
 
+# TOKENS (Asegúrate de tener META_INSTAGRAM_ID en tus Secrets)
 HF_TOKEN = os.environ.get("HF_TOKEN")
 META_TOKEN = os.environ.get("META_TOKEN")
 FB_PAGE_ID = os.environ.get("META_PAGE_ID")
+IG_USER_ID = os.environ.get("META_INSTAGRAM_ID") 
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 API_URL_HF = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
@@ -63,26 +67,55 @@ def aplicar_marca_agua(foto_ia, img_logo):
 
 def publicar_en_facebook(ruta_foto, texto):
     url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
-    payload = {'message': texto, 'access_token': META_TOKEN}
+    payload = {'message': texto, 'access_token': META_TOKEN, 'published': 'true'}
     with open(ruta_foto, 'rb') as f:
-        files = {'source': f}
-        r = requests.post(url, data=payload, files=files)
+        r = requests.post(url, data=payload, files={'source': f})
     return r.json()
 
+def publicar_en_instagram(url_imagen_publica, texto):
+    """Instagram requiere una URL pública de la imagen"""
+    # 1. Crear contenedor
+    url_base = f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media"
+    payload = {
+        'image_url': url_imagen_publica,
+        'caption': texto,
+        'access_token': META_TOKEN
+    }
+    res = requests.post(url_base, data=payload).json()
+    creation_id = res.get('id')
+    
+    if creation_id:
+        # 2. Publicar contenedor
+        url_pub = f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish"
+        res_pub = requests.post(url_pub, data={'creation_id': creation_id, 'access_token': META_TOKEN})
+        return res_pub.json()
+    return res
+
 def main():
-    print("🚀 Iniciando el Bot del Chilenito Melaminero...")
+    print("🚀 Iniciando el Bot del Chilenito Melaminero (FB + IG)...")
     try:
         service = conectar_drive()
         mueble_del_dia = "Centro de entretenimiento moderno en melamina color siena y blanco con cajones push open"
+        
         foto_mueble = generar_imagen_ia(mueble_del_dia)
         if not foto_mueble: return
+        
         logo = descargar_logo(service)
         if not logo: return
+        
         ruta_archivo = aplicar_marca_agua(foto_mueble, logo)
-        prompt_texto = f"Escribe un post de Facebook para el 'Chilenito Melaminero' (mueblista en SJL). El mueble es: {mueble_del_dia}. Tono cercano y profesional."
+        
+        prompt_texto = f"Escribe un post de Facebook e Instagram para el 'Chilenito Melaminero' (mueblista en SJL). El mueble es: {mueble_del_dia}. Tono cercano y profesional."
         caption = model_gemini.generate_content(prompt_texto).text
-        resultado = publicar_en_facebook(ruta_archivo, caption)
-        print(f"✅ ¡Publicado! ID: {resultado.get('id')}")
+
+        # PUBLICAR EN FACEBOOK
+        res_fb = publicar_en_facebook(ruta_archivo, caption)
+        print(f"📡 Respuesta Facebook: {res_fb}")
+
+        # NOTA PARA INSTAGRAM: 
+        # Instagram API exige que la foto esté en una URL pública (Imgur, Cloudinary, o un servidor).
+        # Si solo usas GitHub, Instagram es más difícil de automatizar sin un hosting intermedio.
+        
     except Exception as e:
         print(f"💥 Error: {e}")
 
