@@ -1,0 +1,38 @@
+name: Publicador Muebles Bot
+
+# Cuándo se ejecuta este workflow
+on:
+  # 1. Permite ejecutar manualmente desde la pestaña Actions
+  workflow_dispatch:
+  
+  # 2. (Comentado por ahora) Se ejecutará automáticamente todos los días a las 9am Lima (14:00 UTC)
+  # Lo activaremos después de probar manualmente
+  # schedule:
+  #   - cron: '0 14 * * *'
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Paso 1: Descargar el código del repo
+      - name: Descargar código
+        uses: actions/checkout@v4
+      
+      # Paso 2: Instalar Python
+      - name: Instalar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      # Paso 3: Instalar dependencias
+      - name: Instalar requests
+        run: pip install requests
+      
+      # Paso 4: Ejecutar el script con los Secrets como variables de entorno
+      - name: Publicar en Facebook e Instagram
+        env:
+          META_TOKEN: ${{ secrets.META_TOKEN }}
+          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
+          META_INSTAGRAM_ID: ${{ secrets.META_INSTAGRAM_ID }}
+        run: python publicar.py
