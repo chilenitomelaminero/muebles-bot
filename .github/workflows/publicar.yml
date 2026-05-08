@@ -1,38 +1,108 @@
-name: Publicador Muebles Bot
+import os
+import io
+import json
+import requests
+import random
+import time
+from PIL import Image
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
+from google.oauth2 import service_account
+import google.generativeai as genai
 
-# Cuándo se ejecuta este workflow
-on:
-  # 1. Permite ejecutar manualmente desde la pestaña Actions
-  workflow_dispatch:
-  
-  # 2. (Comentado por ahora) Se ejecutará automáticamente todos los días a las 9am Lima (14:00 UTC)
-  # Lo activaremos después de probar manualmente
-  # schedule:
-  #   - cron: '0 14 * * *'
+# ====================================================================
+# CONFIGURACIÓN DE IDs Y TOKENS
+# ====================================================================
+ID_CARPETA_LOGO = "1EKyQ0HCDd2gp89_0FAdGClZ9KO3fvcUN"
+ID_PUBLICACIONES = "1ajUOSc3fw52khPvXF2XgVF77soWCwT1z"
 
-jobs:
-  publicar:
-    runs-on: ubuntu-latest
+HF_TOKEN = os.environ.get("HF_TOKEN")
+META_TOKEN = os.environ.get("META_TOKEN")
+FB_PAGE_ID = os.environ.get("META_PAGE_ID")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+
+# Modelo de Hugging Face para fotos realistas
+API_URL_HF = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
+
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
+    gemini = genai.GenerativeModel('gemini-1.5-flash')
+
+# ====================================================================
+# FUNCIONES DE APOYO
+# ====================================================================
+
+def conectar_drive():
+    creds_json = os.environ.get("GDRIVE_CREDENTIALS")
+    info = json.loads(creds_json)
+    creds = service_account.Credentials.from_service_account_info(info)
+    return build('drive', 'v3', credentials=creds)
+
+def descargar_logo(service):
+    query = f"'{ID_CARPETA_LOGO}' in parents and name = 'logo_principal.webp'"
+    res = service.files().list(q=query).execute()
+    if not res.get('files'): return None
+    request = service.files().get_media(fileId=res['files'][0]['id'])
+    fh = io.BytesIO()
+    MediaIoBaseDownload(fh, request).next_chunk()
+    fh.seek(0)
+    return Image.open(fh)
+
+def generar_imagen_ia(prompt_maestro):
+    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    payload = {"inputs": f"Professional realistic furniture photography, {prompt_maestro}, 8k resolution, clean workshop lighting."}
+    response = requests.post(API_URL_HF, headers=headers, json=payload)
+    if response.status_code == 200:
+        return Image.open(io.BytesIO(response.content))
+    return None
+
+def aplicar_logo(foto_ia, img_logo):
+    foto = foto_ia.convert("RGBA")
+    logo = img_logo.convert("RGBA")
+    # Logo al 18% del ancho
+    ancho_logo = int(foto.width * 0.18)
+    w_percent = (ancho_logo / float(logo.width))
+    alto_logo = int((float(logo.height) * float(w_percent)))
+    logo = logo.resize((ancho_logo, alto_logo), Image.LANCZOS)
+    # Posición derecha-abajo
+    foto.paste(logo, (foto.width - logo.width - 40, foto.height - logo.height - 40), logo)
+    final = foto.convert("RGB")
+    final.save("final_post.jpg", "JPEG", quality=95)
+    return "final_post.jpg"
+
+# ====================================================================
+# FLUJO PRINCIPAL
+# ====================================================================
+
+def main():
+    print("🎬 Iniciando proceso del Chilenito Melaminero...")
+    service = conectar_drive()
     
-    steps:
-      # Paso 1: Descargar el código del repo
-      - name: Descargar código
-        uses: actions/checkout@v4
-      
-      # Paso 2: Instalar Python
-      - name: Instalar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      # Paso 3: Instalar dependencias
-      - name: Instalar requests
-        run: pip install requests
-      
-      # Paso 4: Ejecutar el script con los Secrets como variables de entorno
-      - name: Publicar en Facebook e Instagram
-        env:
-          META_TOKEN: ${{ secrets.META_TOKEN }}
-          META_PAGE_ID: ${{ secrets.META_PAGE_ID }}
-          META_INSTAGRAM_ID: ${{ secrets.META_INSTAGRAM_ID }}
-        run: python publicar.py
+    # 1. Definir la idea del día
+    idea = "Centro de entretenimiento flotante moderno con melamina de 18mm color nogal y blanco"
+    
+    # 2. Generar prompt coherente con tu marca (ADN)
+    print("🧠 La IA está pensando en tu estilo...")
+    prompt_maestro = f"Crea un mueble que siga el estilo de tus trabajos en SJL: {idea}"
+    
+    # 3. Crear la foto
+    foto_ia = generar_imagen_ia(prompt_maestro)
+    if not foto_ia:
+        print("❌ Falló la generación de imagen."); return
+
+    # 4. Pegar logo
+    logo = descargar_logo(service)
+    ruta_archivo = aplicar_logo(foto_ia, logo)
+    
+    # 5. Redactar caption
+    caption = gemini.generate_content(f"Escribe un post para Facebook como el 'Chilenito Melaminero' sobre: {idea}").text
+
+    # 6. Publicar en Facebook
+    url_fb = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
+    with open(ruta_archivo, 'rb') as f:
+        requests.post(url_fb, files={'source': f}, data={'message': caption, 'access_token': META_TOKEN})
+    
+    print("✅ ¡Publicación completada con éxito!")
+
+if __name__ == "__main__":
+    main()
