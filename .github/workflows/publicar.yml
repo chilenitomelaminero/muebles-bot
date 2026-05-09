@@ -35,5 +35,4 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: python publicar.py
-
+        run: python main.py
