@@ -29,7 +29,7 @@ ID_PUBLICACIONES = "1ajUOSc3fw52khPvXF2XgVF77soWCwT1z"
 META_TOKEN = os.environ.get("META_TOKEN")
 FB_PAGE_ID = os.environ.get("META_PAGE_ID")
 IG_USER_ID = os.environ.get("META_INSTAGRAM_ID")
-GEMINI_KEY = os.environ.get("MI_API_KEY_SECRETA")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
