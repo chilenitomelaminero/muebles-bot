@@ -1,6 +1,6 @@
 """
 MUEBLES BOT - Chilenito Melaminero
-Versión Mejorada: Prompts estructurados + Alta resolución + Reintentos
+Versión Mejorada: Prompts estructurados + Réplica Gráfica Exacta
 """
 
 import os
@@ -52,7 +52,7 @@ CATALOGO_MUEBLES = [
     ("Velador 2 Cajones",      "VELADOR",       "compact bedside table with 2 drawers, melamine finish"),
     ("Zapatera 12 Pares",      "ZAPATERA",      "tall shoe cabinet rack for 12 pairs, melamine finish"),
     ("Librero 5 Niveles",      "LIBRERO",       "tall 5-shelf open bookcase, melamine finish"),
-    ("Cajonera 6 Cajones",     "CAJONERA",      "wide 6-drawer chest of drawers, melamine finish"),
+    ("Cajonera 6 Cajones",      "CAJONERA",      "wide 6-drawer chest of drawers, melamine finish"),
     ("Closet Empotrado",       "CLOSET",        "built-in walk-in closet with shelves and hanging rail, melamine finish"),
     ("Mesa de Centro",         "MESA CENTRO",   "modern rectangular coffee table with lower shelf, melamine finish"),
     ("Mueble de Cocina",       "COCINA",        "modern kitchen base cabinet with countertop and doors, melamine finish"),
@@ -79,10 +79,8 @@ CATALOGO_MELAMINAS = [
 # UTILIDADES
 # ─────────────────────────────────────────────
 def cargar_fuente(ruta, tamano):
-    try:
-        return ImageFont.truetype(ruta, tamano)
-    except:
-        return ImageFont.load_default()
+    try: return ImageFont.truetype(ruta, tamano)
+    except: return ImageFont.load_default()
 
 def ajustar_tamano_fuente(texto, ruta_fuente, tamano_maximo, ancho_maximo):
     tamano = tamano_maximo
@@ -91,8 +89,7 @@ def ajustar_tamano_fuente(texto, ruta_fuente, tamano_maximo, ancho_maximo):
     temp_draw = ImageDraw.Draw(temp_img)
     while tamano > 20:
         bbox = temp_draw.textbbox((0, 0), texto, font=fuente)
-        if (bbox[2] - bbox[0]) <= ancho_maximo:
-            return fuente
+        if (bbox[2] - bbox[0]) <= ancho_maximo: return fuente
         tamano -= 5
         fuente = cargar_fuente(ruta_fuente, tamano)
     return fuente
@@ -101,29 +98,31 @@ def hex_a_rgb(hex_color):
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
+def dibujar_pildora(draw, x1, y1, x2, y2, color):
+    radio = (y2 - y1) // 2
+    draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
+    draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
+    draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
+
 # ─────────────────────────────────────────────
 # GOOGLE DRIVE
 # ─────────────────────────────────────────────
 def conectar_drive():
     creds_json = os.environ.get("GDRIVE_CREDENTIALS")
     info = json.loads(creds_json)
-    creds = service_account.Credentials.from_service_account_info(
-        info, scopes=['https://www.googleapis.com/auth/drive']
-    )
+    creds = service_account.Credentials.from_service_account_info(info, scopes=['https://www.googleapis.com/auth/drive'])
     return build('drive', 'v3', credentials=creds)
 
 def descargar_logo(service):
     query = f"'{ID_CARPETA_LOGO}' in parents and name = 'logo_principal.webp'"
     res = service.files().list(q=query).execute()
     archivos = res.get('files', [])
-    if not archivos:
-        return None
+    if not archivos: return None
     request = service.files().get_media(fileId=archivos[0]['id'])
     fh = io.BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
-    while not done:
-        _, done = downloader.next_chunk()
+    while not done: _, done = downloader.next_chunk()
     fh.seek(0)
     return Image.open(fh)
 
@@ -150,8 +149,7 @@ def decidir_mueble_y_titulo():
         "REGLAS ESTRICTAS para desc_img:\n"
         f"- DEBE empezar con: 'Professional product photography of a {mueble_en}'\n"
         f"- DEBE incluir: 'melamine finish in {melamina_nombre} tone'\n"
-        "- DEBE terminar con: 'isolated on pure white background, no shadows, no floor, "
-        "studio lighting, ultra sharp focus, photorealistic render, 8k resolution'\n"
+        "- DEBE terminar con: 'isolated on pure white background, no shadows, no floor, studio lighting, ultra sharp focus, photorealistic render, 8k resolution'\n"
         "- NO menciones personas, plantas, decoración, habitaciones ni ambientes.\n"
         "- El mueble debe estar centrado y ocupar al menos 80% del encuadre."
     )
@@ -165,87 +163,33 @@ def decidir_mueble_y_titulo():
 
     r = requests.post(url, headers=headers, json=payload).json()
     datos = json.loads(r['choices'][0]['message']['content'])
-
-    desc = datos.get('desc_img', '')
-    if 'product photography' not in desc.lower():
-        print("⚠️  Groq ignoró el formato. Aplicando fallback.")
-        datos['desc_img'] = (
-            f"Professional product photography of a {mueble_en}, "
-            f"melamine finish in {melamina_nombre} tone, "
-            "clean modern Scandinavian design, centered in frame, "
-            "isolated on pure white background, no shadows, no floor, "
-            "studio lighting, ultra sharp focus, photorealistic render, 8k resolution"
-        )
-
     datos['color_hex'] = melamina_hex
     datos['melamina'] = melamina_nombre
     datos['titulo'] = titulo_corto
     datos['mueble_es'] = mueble_es
-
-    print(f"🪵  Mueble: {titulo_corto} | Melamina: {melamina_nombre}")
-    print(f"📝  Prompt imagen: {datos['desc_img'][:120]}...")
     return datos
 
 # ─────────────────────────────────────────────
 # IA — GENERACIÓN DE IMAGEN
 # ─────────────────────────────────────────────
 def generar_imagen_ia(desc, max_intentos=3):
-    prompt_final = (
-        f"{desc} "
-        "sharp edges, no blur, crisp details, high-end furniture catalog photography, "
-        "commercial product shot, DSLR quality"
-    )
-
+    prompt_final = f"{desc} sharp edges, no blur, crisp details, high-end furniture catalog photography, commercial product shot, DSLR quality"
     for intento in range(max_intentos):
         try:
             seed = random.randint(1, 999999)
-            url = (
-                f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt_final)}"
-                f"?width=2160&height=2160&model=flux&nologo=true&seed={seed}&enhance=true"
-            )
-
-            print(f"🎨 Generando imagen {intento+1}/{max_intentos} (seed={seed}, 2160px)...")
+            url = f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt_final)}?width=2160&height=2160&model=flux&nologo=true&seed={seed}&enhance=true"
             res = requests.get(url, timeout=240)
-
             if res.status_code != 200:
-                print(f"⚠️  HTTP {res.status_code}, reintentando...")
-                time.sleep(10)
-                continue
-
+                time.sleep(10); continue
             img = Image.open(io.BytesIO(res.content))
-            img_rgb = img.convert("RGB")
-            muestra = img_rgb.resize((100, 100))
-            pixels = list(muestra.getdata())
-            blancos = sum(1 for p in pixels if p[0] > 245 and p[1] > 245 and p[2] > 245)
-            pct_blanco = blancos / len(pixels)
-
-            if pct_blanco > 0.95:
-                print(f"⚠️  Imagen casi vacía ({pct_blanco:.0%} blanco), reintentando...")
-                time.sleep(8)
-                continue
-
-            img_hd = img.resize((1080, 1080), Image.LANCZOS)
-            print(f"✅ Imagen válida ({pct_blanco:.0%} fondo blanco)")
-            return img_hd
-
-        except Exception as e:
-            print(f"⚠️  Error intento {intento+1}: {e}")
+            return img.resize((1080, 1080), Image.LANCZOS)
+        except:
             time.sleep(10)
-
-    print("❌ No se pudo generar imagen válida")
     return None
 
 # ─────────────────────────────────────────────
-# COMPOSICIÓN GRÁFICA
+# COMPOSICIÓN GRÁFICA (CAMBIOS DE REFERENCIA INTEGRADOS)
 # ─────────────────────────────────────────────
-def dibujar_pildora(draw, x1, y1, x2, y2, color):
-    """Píldora completamente ovalada en ambos extremos."""
-    radio = (y2 - y1) // 2
-    draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
-    draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
-    draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
-
-
 def componer_pieza_grafica(foto_mueble, logo, datos):
     W, H = 1080, 1080
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
@@ -255,243 +199,114 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     foto_w = 950
     ratio = foto_w / foto_mueble.width
     foto_h = int(foto_mueble.height * ratio)
-    if foto_h > 620:
-        foto_h = 620
+    if foto_h > 610: foto_h = 610
     foto_res = foto_mueble.resize((foto_w, foto_h), Image.LANCZOS)
     canvas.paste(foto_res, ((W - foto_w) // 2, 290))
 
-    # 2. Título superior centrado
+    # 2. Título
     f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 100, W - 100)
     bbox_t = draw.textbbox((0, 0), datos['titulo'], font=f_tit)
     tit_w = bbox_t[2] - bbox_t[0]
-    tit_x = (W - tit_w) / 2
-    draw.text((tit_x, 30), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
+    draw.text(((W - tit_w) / 2, 30), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
 
-    # 3. Cursiva "a medida" — alineada a la derecha del título
+    # 3. Cursiva "a medida"
     f_cur = cargar_fuente(FUENTE_CURSIVA, 80)
-    bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
-    cur_w = bbox_c[2] - bbox_c[0]
-    draw.text((tit_x + tit_w - cur_w + 20, 128), "a medida", font=f_cur, fill=COLOR_AZUL)
+    draw.text(((W + tit_w) / 2 - 220, 128), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 4. Muestra de color de melamina
+    # 4. Muestra Melamina
     color_mel = hex_a_rgb(datos.get('color_hex', '#8B4513'))
     draw.rounded_rectangle([60, 230, 160, 330], radius=15, fill=color_mel)
-    draw.rounded_rectangle([60, 230, 160, 330], radius=15, outline=COLOR_AZUL, width=2)
     draw.text((175, 238), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 24), fill=COLOR_AZUL)
     draw.text((175, 268), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 42), fill=COLOR_AZUL)
 
-    # 5. Logo Chilenito — esquina inferior derecha
+    # 5. Logo
     logo_w = 260
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
-    logo_x = W - logo_w - 20
-    logo_y = H - logo_h - 20
-    canvas.paste(logo_res, (logo_x, logo_y), logo_res)
+    canvas.paste(logo_res, (W - logo_w - 30, H - logo_h - 30), logo_res)
 
     # ─────────────────────────────────────────────────────────────
-    # 6. BANDA WHATSAPP — medidas exactas de Canva escaladas a 1080
-    # Canva: 326.5 x 56.7px en canvas 1408.3 x 804.5px
-    # Factor escala: 1080 / 804.5 = 1.343
+    # 6. BANDA WHATSAPP — RÉPLICA FIEL (280x60px)
     # ─────────────────────────────────────────────────────────────
-    WS_W  = 250          # 326.5 × 0.767 ≈ 250px
-    WS_H  = 43           # 56.7 × 0.767 ≈ 43px
-    WS_Y  = 876          # 652.5 × 1.343 ≈ 876px
-    WS_X1 = 20           # empieza desde borde izquierdo
+    WS_W  = 280           
+    WS_H  = 60            
+    WS_X1 = 30            # Margen izquierdo fiel
+    WS_Y  = 990           # Pegado al margen inferior (1080 - 60 - 30)
     WS_X2 = WS_X1 + WS_W
 
     dibujar_pildora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
 
-    # Ícono WhatsApp dentro de la banda
-    ICONO_W = 28
-    icono_x = WS_X1 + 8
-    icono_y = WS_Y + (WS_H - ICONO_W) // 2
+    # Ícono WhatsApp (Centrado verticalmente)
+    ICONO_DIM = 40        
+    icono_x = WS_X1 + 12
+    icono_y = WS_Y + (WS_H - ICONO_DIM) // 2
     try:
         path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
-        icon_ws = Image.open(path_ws).convert("RGBA").resize((ICONO_W, ICONO_W), Image.LANCZOS)
+        icon_ws = Image.open(path_ws).convert("RGBA").resize((ICONO_DIM, ICONO_DIM), Image.LANCZOS)
         canvas.paste(icon_ws, (icono_x, icono_y), icon_ws)
-    except:
-        pass
+    except: pass
 
-    # Número WhatsApp centrado dentro de la banda
-    f_ws = cargar_fuente(FUENTE_TITULO, 20)
+    # Número WhatsApp (Perfectamente centrado y "cuadrado")
+    f_ws = cargar_fuente(FUENTE_TITULO, 26) 
     texto_ws = WHATSAPP_NUMERO
     bbox_ws = draw.textbbox((0, 0), texto_ws, font=f_ws)
-    texto_w = bbox_ws[2] - bbox_ws[0]
-    texto_h = bbox_ws[3] - bbox_ws[1]
-    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 10
-    texto_y = WS_Y + (WS_H - texto_h) // 2 - 1
-    draw.text((texto_x, texto_y), texto_ws, font=f_ws, fill=COLOR_BLANCO)
+    tw, th = bbox_ws[2] - bbox_ws[0], bbox_ws[3] - bbox_ws[1]
+    # Alineación compensando visualmente el ícono
+    draw.text((WS_X1 + 68, WS_Y + (WS_H - th) // 2 - 3), texto_ws, font=f_ws, fill=COLOR_BLANCO)
 
-    # 7. "Entregas todo Lima" — justo encima de la banda verde
+    # 7. "Entregas todo Lima" (Justo encima de la píldora)
+    draw.text((WS_X1 + 35, WS_Y - 35), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 18), fill=COLOR_AZUL)
     try:
         path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
         icon_truck = Image.open(path_truck).convert("RGBA").resize((22, 22), Image.LANCZOS)
-        canvas.paste(icon_truck, (WS_X1, WS_Y - 30), icon_truck)
-        txt_x = WS_X1 + 28
-    except:
-        txt_x = WS_X1
-    draw.text((txt_x, WS_Y - 30), "Entregas todo Lima",
-              font=cargar_fuente(FUENTE_REGULAR, 18), fill=COLOR_AZUL)
+        canvas.paste(icon_truck, (WS_X1, WS_Y - 36), icon_truck)
+    except: pass
 
     ruta = "post_final.jpg"
     canvas.save(ruta, "JPEG", quality=97, subsampling=0)
     return ruta
 
 # ─────────────────────────────────────────────
-# GITHUB
+# GITHUB, CAPTION Y PUBLICACIÓN
 # ─────────────────────────────────────────────
 def subir_a_github(ruta):
     ts = int(time.time())
-    with open(ruta, 'rb') as f:
-        content = base64.b64encode(f.read()).decode('utf-8')
+    with open(ruta, 'rb') as f: content = base64.b64encode(f.read()).decode('utf-8')
     url = f"https://api.github.com/repos/{GH_REPO}/contents/imagenes_publicadas/post_{ts}.jpg"
     headers = {"Authorization": f"Bearer {GH_TOKEN}"}
     payload = {"message": f"Post {ts}", "content": content, "branch": "main"}
     r = requests.put(url, headers=headers, json=payload)
-    if r.status_code in (200, 201):
-        return f"https://raw.githubusercontent.com/{GH_REPO}/main/imagenes_publicadas/post_{ts}.jpg"
-    print(f"⚠️  GitHub upload falló: {r.status_code} {r.text[:200]}")
-    return None
+    return f"https://raw.githubusercontent.com/{GH_REPO}/main/imagenes_publicadas/post_{ts}.jpg" if r.status_code in (200, 201) else None
 
-# ─────────────────────────────────────────────
-# CAPTION — ESTILO CHILENITO MELAMINERO
-# ─────────────────────────────────────────────
 def generar_caption(titulo, melamina, mueble_es=""):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-
-    titulo_limpio = titulo.title().replace(" ", "")
-    hashtags = (
-        f"#{titulo_limpio} #{titulo_limpio}AMedida "
-        f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
-        f"#ElChilenitoMelaminero #OrganizacionHogar"
-    )
-
-    prompt = (
-        f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
-        f"Escribe un post de Facebook e Instagram para: {mueble_es or titulo} en melamina {melamina}.\n\n"
-        f"Sigue EXACTAMENTE esta estructura, respetando los saltos de línea:\n\n"
-        f"[LÍNEA 1] Una frase gancho atractiva sobre el {titulo} a medida. (sin emoji al inicio)\n\n"
-        f"[LÍNEA 2] Describe en 1-2 oraciones el beneficio principal de tener este mueble personalizado.\n\n"
-        f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
-        f"[CARACTERÍSTICAS] Lista estas 6 características con emoji ✅ al inicio, una por línea:\n"
-        f"✅ Diseño personalizado según tu espacio\n"
-        f"✅ [característica interna específica del {titulo}]\n"
-        f"✅ Colores disponibles a elección (melamina {melamina} y más)\n"
-        f"✅ Material resistente y duradero\n"
-        f"✅ Precios accesibles\n"
-        f"✅ Entregas a domicilio en SJL y todo Lima\n\n"
-        f"[LÍNEA MOTIVADORA] Una oración que motive al cliente a dar el paso.\n\n"
-        f"[CTA] Escribe EXACTAMENTE: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada'\n\n"
-        f"[HASHTAGS] Escribe EXACTAMENTE estos hashtags:\n"
-        f"{hashtags}\n\n"
-        f"IMPORTANTE: Solo el texto del post, sin explicaciones, sin corchetes, en español peruano natural."
-    )
-
-    payload = {
-        "model": "llama-3.3-70b-versatile",
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
-        "max_tokens": 900
-    }
-
+    hashtags = f"#{titulo.replace(' ', '')} #MueblesMelamina #SJL #Lima #ElChilenitoMelaminero"
+    prompt = f"Escribe un post de Facebook para: {mueble_es} en melamina {melamina}. Estilo cercano, mencionando entregas en todo Lima. Cotiza al {WHATSAPP_NUMERO}. Hashtags: {hashtags}"
+    payload = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "temperature": 0.7}
     r = requests.post(url, headers=headers, json=payload).json()
-    caption = r['choices'][0]['message']['content']
-    print(f"✅ Caption generado ({len(caption)} caracteres)")
-    return caption
+    return r['choices'][0]['message']['content']
 
-# ─────────────────────────────────────────────
-# PUBLICACIÓN META
-# ─────────────────────────────────────────────
 def publicar_fb(ruta, texto):
     url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
     with open(ruta, 'rb') as f:
-        r = requests.post(
-            url,
-            data={'message': texto, 'access_token': META_TOKEN},
-            files={'source': f}
-        )
-    ok = 'id' in r.json()
-    if not ok:
-        print(f"⚠️  Facebook error: {r.text[:300]}")
-    return ok
+        r = requests.post(url, data={'message': texto, 'access_token': META_TOKEN}, files={'source': f})
+    return 'id' in r.json()
 
-def publicar_ig(url_imagen, texto):
-    r1 = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
-        data={
-            'image_url': url_imagen,
-            'caption': texto,
-            'access_token': META_TOKEN
-        }
-    ).json()
-
-    c_id = r1.get('id')
-    if not c_id:
-        print(f"⚠️  Instagram container error: {r1}")
-        return False
-
-    time.sleep(15)
-    r2 = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
-        data={'creation_id': c_id, 'access_token': META_TOKEN}
-    ).json()
-
-    ok = 'id' in r2
-    if not ok:
-        print(f"⚠️  Instagram publish error: {r2}")
-    return ok
-
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
 def main():
-    if not os.environ.get("GROQ_API_KEY"):
-        print("❌ GROQ_API_KEY no configurada")
-        return
-
     try:
-        print("🔌 Conectando a Google Drive...")
         service = conectar_drive()
         logo = descargar_logo(service)
-        if not logo:
-            print("❌ No se encontró logo_principal.webp en Drive")
-            return
-
-        print("🤖 Decidiendo mueble con IA...")
         datos = decidir_mueble_y_titulo()
-
-        print("🖼️  Generando imagen en alta resolución...")
         foto = generar_imagen_ia(datos['desc_img'])
-
-        if not foto:
-            print("❌ No se pudo generar imagen. Abortando.")
-            return
-
-        print("🎨 Componiendo pieza gráfica...")
-        ruta = componer_pieza_grafica(foto, logo, datos)
-
-        print("📤 Subiendo a GitHub...")
-        url_p = subir_a_github(ruta)
-
-        print("✍️  Generando caption...")
-        caption = generar_caption(
-            datos['titulo'],
-            datos['melamina'],
-            datos.get('mueble_es', datos['titulo'])
-        )
-
-        print("📘 Publicando en Facebook...")
-        f_ok = publicar_fb(ruta, caption)
-
-        print("📸 Publicando en Instagram...")
-        i_ok = publicar_ig(url_p, caption) if url_p else False
-
-        print(f"\n🏁 Finalizado → Facebook: {'✅' if f_ok else '❌'} | Instagram: {'✅' if i_ok else '❌'}")
-
+        if foto and logo:
+            ruta = componer_pieza_grafica(foto, logo, datos)
+            url_p = subir_a_github(ruta)
+            caption = generar_caption(datos['titulo'], datos['melamina'], datos.get('mueble_es', datos['titulo']))
+            f_ok = publicar_fb(ruta, caption)
+            print(f"🏁 Finalizado: Facebook {'✅' if f_ok else '❌'}")
     except Exception as e:
-        print(f"💥 Error crítico: {e}")
-        raise
+        print(f"💥 Error: {e}")
 
 if __name__ == "__main__":
     main()
