@@ -1,6 +1,7 @@
 """
 MUEBLES BOT - Chilenito Melaminero
 Composición profesional tipo plantilla + publica en FB e IG
+Versión: Anti-Sanitarios & Prompts Refinados
 """
 
 import os
@@ -105,22 +106,28 @@ def descargar_logo(service):
 
 
 def decidir_mueble_y_titulo():
-    print("\n🧠 Decidiendo mueble del día...")
+    print("\n🧠 Groq decidiendo mueble (Filtro Anti-Batería de Baño)...")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    
+    # Prompt mejorado para evitar errores de traducción (como commode = retrete)
     prompt = (
-        "Eres asistente de marketing para 'Chilenito Melaminero', mueblista en SJL Lima Perú. "
-        "Sugiere UN mueble específico de melamina. "
-        "Responde SOLO en JSON con esta estructura exacta (sin markdown):\n"
-        '{"titulo": "ROPERO", "descripcion_imagen": "A single white melamine wardrobe with 6 doors and mirror, modern minimalist style, isolated on white background, product photography", "descripcion_mueble": "Ropero de 6 puertas en melamina blanca con espejo central"}\n\n'
-        "TITULO: máximo 3 palabras en MAYÚSCULAS. Opciones: ROPERO, LIBRERO, MUEBLE DE TV, CLOSET, COCINA, ESCRITORIO, COMODA, REPOSTERO, CAMA, RECIBIDOR.\n"
-        "descripcion_imagen: prompt en INGLÉS específico para generar SOLO ESE MUEBLE aislado, como foto de producto, fondo blanco o neutro, SIN personas, SIN habitación completa.\n"
-        "descripcion_mueble: descripción en español del mueble para el caption."
+        "Eres el Director Creativo de 'Chilenito Melaminero', carpintería fina en SJL, Lima. "
+        "Tu objetivo es vender muebles de melamina modernos y elegantes. "
+        "Responde SOLO en JSON con esta estructura:\n"
+        '{"titulo": "ROPERO", "descripcion_imagen": "PROMPT_EN_INGLES", "descripcion_mueble": "DESCRIPCION_VENDEDORA"}\n\n'
+        "REGLAS CRÍTICAS:\n"
+        "1. descripcion_imagen: Debe ser un prompt en INGLÉS detallado. NUNCA uses la palabra 'commode'. "
+        "Si quieres una cómoda usa 'modern bedroom dresser chest of drawers'. "
+        "Asegúrate de incluir: 'made of melamine wood', 'studio lighting', 'white background', 'high-end furniture'.\n"
+        "2. TITULO: Máximo 2 palabras en MAYÚSCULAS (ej. COMODA DE DIARIO, ROPERO MODERNO).\n"
+        "3. Evita cualquier término que pueda confundirse con artículos de baño o cocina si no es el tema."
     )
+    
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.9,
+        "temperature": 0.7,
         "max_tokens": 400,
         "response_format": {"type": "json_object"}
     }
@@ -131,28 +138,25 @@ def decidir_mueble_y_titulo():
         desc_imagen = data.get("descripcion_imagen", "Modern melamine furniture, product photography, white background")
         desc_mueble = data.get("descripcion_mueble", titulo)
         print(f"   ✅ Título: {titulo}")
-        print(f"   ✅ Prompt imagen: {desc_imagen[:80]}...")
         return titulo, desc_imagen, desc_mueble
-    print(f"   ❌ Error: {response.status_code}")
-    return "MUEBLE A MEDIDA", "Modern melamine furniture product photography white background", "Mueble a medida en melamina"
+    return "MUEBLE A MEDIDA", "Modern melamine furniture", "Mueble a medida"
 
 
 def generar_imagen_ia(descripcion_imagen):
-    print(f"\n🎨 Generando imagen IA del mueble...")
-    # Prompt muy específico para que genere SOLO el mueble
-    prompt = (
-        f"{descripcion_imagen}. "
-        f"Product photography style, single furniture piece only, "
-        f"plain white or very light gray background, no room context, "
-        f"no people, professional lighting, centered, 8k"
+    print(f"\n🎨 Generando imagen IA con Pollinations (Flux)...")
+    # Refinamos el prompt final añadiendo modificadores de calidad
+    prompt_final = (
+        f"{descripcion_imagen}. Professional product photography, "
+        f"clean melamine texture, realistic wood grain, studio setup, "
+        f"pure white background, no people, no toilets, highly detailed, 8k"
     )
-    prompt_encoded = urllib.parse.quote(prompt)
-    url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1080&height=800&model=flux&nologo=true"
-    print("   ⏳ Pollinations AI (20-40 seg)...")
+    prompt_encoded = urllib.parse.quote(prompt_final)
+    url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1080&height=1080&model=flux&nologo=true"
+    
     try:
         response = requests.get(url, timeout=120)
         if response.status_code == 200:
-            print("   ✅ Imagen generada")
+            print("   ✅ Imagen generada correctamente")
             return Image.open(io.BytesIO(response.content))
         print(f"   ❌ Status {response.status_code}")
         return None
@@ -170,237 +174,141 @@ def cargar_fuente(ruta, tamano):
 
 
 def texto_centrado(draw, texto, fuente, y, ancho_canvas, color):
-    """Dibuja texto perfectamente centrado en X."""
     bbox = draw.textbbox((0, 0), texto, font=fuente)
     text_w = bbox[2] - bbox[0]
     x = (ancho_canvas - text_w) / 2
     draw.text((x, y), texto, font=fuente, fill=color)
-    return bbox[3] - bbox[1]  # retorna altura del texto
+    return bbox[3] - bbox[1]
 
 
 def banda_redondeada(draw, x1, y1, x2, y2, radio, color):
-    """Dibuja un rectángulo con bordes redondeados solo arriba."""
-    # Rectángulo principal
     draw.rectangle([(x1, y1 + radio), (x2, y2)], fill=color)
-    # Rectángulo horizontal para el medio
     draw.rectangle([(x1 + radio, y1), (x2 - radio, y2)], fill=color)
-    # Círculos para las esquinas superiores
     draw.ellipse([(x1, y1), (x1 + radio * 2, y1 + radio * 2)], fill=color)
     draw.ellipse([(x2 - radio * 2, y1), (x2, y1 + radio * 2)], fill=color)
 
 
 def componer_pieza_grafica(foto_mueble, logo, titulo):
-    print("\n🖼️  Componiendo pieza gráfica...")
-    
+    print("\n🖼️  Armando la plantilla profesional...")
     W, H = 1080, 1080
-    
-    # Canvas base: fondo blanco limpio
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
     draw = ImageDraw.Draw(canvas)
     
-    # --- ZONA DE FOTO (entre header y footer) ---
-    # Header: 220px arriba
-    # Footer: 130px abajo (banda verde)
-    # Foto: entre 220 y 950
+    HEADER_H = 220
+    FOOTER_Y = 950
+    FOOTER_H = H - FOOTER_Y
     
-    HEADER_H = 220       # altura del área de título
-    FOOTER_Y = 950       # donde empieza la banda verde
-    FOOTER_H = H - FOOTER_Y  # altura de la banda verde
-    
-    # 1. Foto del mueble centrada en la zona media
-    foto_zona_h = FOOTER_Y - HEADER_H  # 730px disponibles
+    # Foto: Redimensionamos para que encaje en el centro
+    foto_zona_h = FOOTER_Y - HEADER_H
     foto_resized = foto_mueble.resize((W, foto_zona_h), Image.LANCZOS)
     canvas.paste(foto_resized, (0, HEADER_H))
     
-    # 2. Degradado suave en la parte superior de la foto para que el título sea legible
-    for i in range(60):
-        alpha = int(255 * (1 - i / 60))
-        draw.rectangle([(0, HEADER_H + i), (W, HEADER_H + i + 1)],
-                       fill=(255, 255, 255, alpha) if False else (255, 255, 255))
+    # Textos y Branding
+    fuente_titulo = cargar_fuente(FUENTE_TITULO, 110)
+    texto_centrado(draw, titulo, fuente_titulo, 35, W, COLOR_AZUL)
     
-    # 3. TÍTULO grande centrado en el header
-    fuente_titulo = cargar_fuente(FUENTE_TITULO, 120)
-    texto_centrado(draw, titulo, fuente_titulo, 25, W, COLOR_AZUL)
+    fuente_cursiva = cargar_fuente(FUENTE_CURSIVA, 85)
+    texto_centrado(draw, "a medida", fuente_cursiva, 145, W, COLOR_AZUL)
     
-    # 4. Cursiva "a medida" centrada justo debajo del título
-    fuente_cursiva = cargar_fuente(FUENTE_CURSIVA, 80)
-    texto_centrado(draw, "a medida", fuente_cursiva, 155, W, COLOR_AZUL)
-    
-    # 5. "Entregas todo Lima" abajo izquierda, justo encima de la banda verde
     fuente_regular = cargar_fuente(FUENTE_REGULAR, 34)
-    draw.text((35, FOOTER_Y - 52), "Entregas todo Lima", font=fuente_regular, fill=COLOR_AZUL)
+    draw.text((40, FOOTER_Y - 55), "Calidad Premium - SJL", font=fuente_regular, fill=COLOR_AZUL)
     
-    # 6. Logo Chilenito abajo derecha, justo encima de la banda verde
-    logo_w = int(W * 0.20)
+    # Logo
+    logo_w = int(W * 0.22)
     logo_ratio = logo_w / logo.width
     logo_h = int(logo.height * logo_ratio)
     logo_resized = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
-    pos_x = W - logo_w - 30
-    pos_y = FOOTER_Y - logo_h - 15
-    canvas.paste(logo_resized, (pos_x, pos_y), logo_resized)
+    canvas.paste(logo_resized, (W - logo_w - 40, FOOTER_Y - logo_h - 20), logo_resized)
     
-    # 7. BANDA VERDE con bordes redondeados arriba
-    draw_rgba = ImageDraw.Draw(canvas)
-    radio = 30
-    banda_redondeada(draw_rgba, 0, FOOTER_Y, W, H, radio, COLOR_VERDE_WS)
-    
-    # 8. Texto WhatsApp centrado en la banda verde
+    # Footer Verde WhatsApp
+    banda_redondeada(draw, 0, FOOTER_Y, W, H, 30, COLOR_VERDE_WS)
     fuente_ws = cargar_fuente(FUENTE_TITULO, 55)
-    texto_ws = f"WhatsApp: {WHATSAPP_NUMERO}"
-    center_y = FOOTER_Y + (FOOTER_H - 55) // 2 - 5
-    texto_centrado(draw_rgba, texto_ws, fuente_ws, center_y, W, COLOR_BLANCO)
+    texto_ws = f"Pide tu cotización: {WHATSAPP_NUMERO}"
+    texto_centrado(draw, texto_ws, fuente_ws, FOOTER_Y + 25, W, COLOR_BLANCO)
     
-    # Guardar
     ruta = "post_final.jpg"
     canvas.save(ruta, "JPEG", quality=95)
-    print("   ✅ Pieza guardada")
     return ruta
 
 
 def subir_imagen_a_github(ruta_local):
-    print("\n☁️  Subiendo a GitHub...")
-    timestamp = int(time.time())
-    nombre_remoto = f"imagenes_publicadas/post_{timestamp}.jpg"
+    print("\n☁️  Subiendo imagen puente a GitHub...")
+    ts = int(time.time())
+    nombre_remoto = f"imagenes_publicadas/post_{ts}.jpg"
     with open(ruta_local, 'rb') as f:
         contenido_b64 = base64.b64encode(f.read()).decode('utf-8')
     url = f"https://api.github.com/repos/{GH_REPO}/contents/{nombre_remoto}"
-    headers = {"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"}
-    payload = {"message": f"Auto: {timestamp}", "content": contenido_b64, "branch": "main"}
-    response = requests.put(url, headers=headers, json=payload, timeout=30)
-    if response.status_code in (200, 201):
-        url_pub = f"https://raw.githubusercontent.com/{GH_REPO}/main/{nombre_remoto}"
-        print(f"   ✅ {url_pub}")
-        return url_pub
-    print(f"   ❌ {response.status_code}")
+    headers = {"Authorization": f"Bearer {GH_TOKEN}"}
+    payload = {"message": f"Post {ts}", "content": contenido_b64, "branch": "main"}
+    r = requests.put(url, headers=headers, json=payload, timeout=30)
+    if r.status_code in (200, 201):
+        return f"https://raw.githubusercontent.com/{GH_REPO}/main/{nombre_remoto}"
     return None
 
 
 def generar_caption_groq(titulo, desc_mueble):
-    print("\n✍️  Generando caption...")
+    print("\n✍️  Redactando caption...")
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
     prompt = (
-        f"Post CORTO para Instagram/Facebook de 'Chilenito Melaminero' (mueblista SJL Lima). "
-        f"Producto: {titulo} - {desc_mueble}. "
-        f"Máximo 50 palabras. 1 línea atractiva + 2 beneficios + CTA. "
-        f"Al final: 📲 WhatsApp: {WHATSAPP_NUMERO}. "
-        f"Después 6 hashtags. Solo el texto del post, sin explicaciones."
+        f"Escribe un post de Facebook e Instagram para 'Chilenito Melaminero'. "
+        f"Mueble: {titulo}. Detalles: {desc_mueble}. "
+        f"Usa emojis, tono amable, menciona que estamos en SJL y cerramos con WhatsApp {WHATSAPP_NUMERO}."
     )
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.8,
-        "max_tokens": 400
+        "temperature": 0.8
     }
-    response = requests.post(url, headers=headers, json=payload, timeout=30)
-    if response.status_code == 200:
-        caption = response.json()['choices'][0]['message']['content']
-        print(f"   ✅ {len(caption)} caracteres")
-        return caption
-    print(f"   ❌ {response.status_code}")
-    return None
+    r = requests.post(url, headers=headers, json=payload).json()
+    return r['choices'][0]['message']['content']
 
 
 def publicar_en_facebook(ruta_foto, texto):
-    print("\n📘 Facebook...")
+    print("\n📘 Publicando en Facebook...")
     url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
     payload = {'message': texto, 'access_token': META_TOKEN, 'published': 'true'}
     with open(ruta_foto, 'rb') as f:
         r = requests.post(url, data=payload, files={'source': f}, timeout=60)
-    data = r.json()
-    if 'id' in data:
-        print(f"   ✅ ID: {data['id']}")
-        return True
-    print(f"   ❌ {json.dumps(data, indent=2)}")
-    return False
+    return 'id' in r.json()
 
 
 def publicar_en_instagram(url_imagen, texto):
-    print("\n📸 Instagram...")
-    res = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
-        data={'image_url': url_imagen, 'caption': texto, 'access_token': META_TOKEN},
-        timeout=30
-    ).json()
-    creation_id = res.get('id')
-    if not creation_id:
-        print(f"   ❌ {json.dumps(res, indent=2)}")
-        return False
-    print(f"   ✅ Contenedor: {creation_id}")
-    time.sleep(7)
-    res_pub = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
-        data={'creation_id': creation_id, 'access_token': META_TOKEN},
-        timeout=30
-    ).json()
-    if 'id' in res_pub:
-        print(f"   ✅ ID: {res_pub['id']}")
-        return True
-    print(f"   ❌ {json.dumps(res_pub, indent=2)}")
+    print("\n📸 Publicando en Instagram...")
+    res = requests.post(f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media", 
+                         data={'image_url': url_imagen, 'caption': texto, 'access_token': META_TOKEN}).json()
+    c_id = res.get('id')
+    if c_id:
+        time.sleep(10) # Espera para que Instagram procese la imagen
+        res_pub = requests.post(f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish", 
+                                 data={'creation_id': c_id, 'access_token': META_TOKEN}).json()
+        return 'id' in res_pub
     return False
 
 
 def main():
-    print("=" * 60)
-    print("  🚀 MUEBLES BOT - Chilenito Melaminero")
-    print("=" * 60)
-    
-    print("\n⏰ Verificando horario...")
+    print("🚀 BOT CHILENITO MELAMINERO - INICIANDO")
     if not toca_publicar_hoy():
-        print("\n⏭️  No es la hora, saliendo.")
         sys.exit(0)
-    
     validar_credenciales()
     
     try:
         service = conectar_drive()
         logo = descargar_logo(service)
-        if not logo:
-            sys.exit(1)
+        titulo, desc_img, desc_mueble = decidir_mueble_y_titulo()
+        foto = generar_imagen_ia(desc_img)
         
-        # Groq decide mueble del día
-        titulo, desc_imagen, desc_mueble = decidir_mueble_y_titulo()
-        
-        # IA genera foto del mueble específico
-        foto = generar_imagen_ia(desc_imagen)
-        if not foto:
-            sys.exit(1)
-        
-        # Componer pieza profesional
-        ruta = componer_pieza_grafica(foto, logo, titulo)
-        
-        # Subir a GitHub
-        url_publica = subir_imagen_a_github(ruta)
-        
-        # Caption
-        caption = generar_caption_groq(titulo, desc_mueble)
-        if not caption:
-            caption = (
-                f"🪑 {titulo} a medida en melamina\n\n"
-                f"✅ Diseño personalizado\n✅ Entregamos en Lima\n\n"
-                f"📲 WhatsApp: {WHATSAPP_NUMERO}\n\n"
-                f"#Muebles #Melamina #Lima #SJL #ChilenitoMelaminero #MueblesPeru"
-            )
-        
-        fb_ok = publicar_en_facebook(ruta, caption)
-        ig_ok = False
-        if url_publica:
-            ig_ok = publicar_en_instagram(url_publica, caption)
-        
-        print("\n" + "=" * 60)
-        print(f"  Facebook:  {'✅' if fb_ok else '❌'}")
-        print(f"  Instagram: {'✅' if ig_ok else '❌'}")
-        print("=" * 60)
-        
-        if not fb_ok and not ig_ok:
-            sys.exit(1)
+        if foto and logo:
+            ruta_final = componer_pieza_grafica(foto, logo, titulo)
+            url_pub = subir_imagen_a_github(ruta_final)
+            caption = generar_caption_groq(titulo, desc_mueble)
             
+            fb_status = publicar_en_facebook(ruta_final, caption)
+            ig_status = publicar_en_instagram(url_pub, caption) if url_pub else False
+            
+            print(f"\n✅ RESULTADOS: FB: {fb_status} | IG: {ig_status}")
     except Exception as e:
-        print(f"\n💥 Error: {e}")
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
-
+        print(f"💥 Error crítico: {e}")
 
 if __name__ == "__main__":
     main()
