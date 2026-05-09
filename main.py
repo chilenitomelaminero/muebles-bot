@@ -28,13 +28,13 @@ GH_TOKEN         = os.environ.get("GH_TOKEN")
 GH_REPO          = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
 # RUTAS Y RECURSOS
-RUTA_ICONOS   = "icono"
-FUENTE_TITULO = "fonts/Montserrat-ExtraBold.ttf"
+RUTA_ICONOS    = "icono"
+FUENTE_TITULO  = "fonts/Montserrat-ExtraBold.ttf"
 FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
 FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 # COLORES CONSTANTES
-COLOR_AZUL      = (27, 58, 107)
+COLOR_AZUL      = (0, 56, 159)      # ← CAMBIADO a #00389F
 COLOR_VERDE_WS  = (94, 177, 7)
 COLOR_BLANCO    = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
@@ -238,6 +238,17 @@ def generar_imagen_ia(desc, max_intentos=3):
 # ─────────────────────────────────────────────
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
+def dibujar_pilldora(draw, x1, y1, x2, y2, color):
+    """Dibuja una banda tipo píldora completamente ovalada en los extremos."""
+    radio = (y2 - y1) // 2
+    # Rectángulo central
+    draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
+    # Semicírculo izquierdo
+    draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
+    # Semicírculo derecho
+    draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
+
+
 def componer_pieza_grafica(foto_mueble, logo, datos):
     W, H = 1080, 1080
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
@@ -252,57 +263,70 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     foto_res = foto_mueble.resize((foto_w, foto_h), Image.LANCZOS)
     canvas.paste(foto_res, ((W - foto_w) // 2, 300))
 
-    # 2. Títulos superiores
+    # 2. Título superior
     f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 90, W - 150)
     bbox_t = draw.textbbox((0, 0), datos['titulo'], font=f_tit)
     draw.text(((W - (bbox_t[2] - bbox_t[0])) / 2, 60), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
 
+    # 3. Cursiva "a medida"
     f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
-    draw.text((W / 2 - 30, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
+    bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
+    draw.text(((W - (bbox_c[2] - bbox_c[0])) / 2, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 3. Muestra de color de melamina
+    # 4. Muestra de color de melamina
     color_mel = hex_a_rgb(datos.get('color_hex', '#8B4513'))
     draw.rounded_rectangle([70, 245, 170, 345], radius=15, fill=color_mel)
     draw.rounded_rectangle([70, 245, 170, 345], radius=15, outline=COLOR_AZUL, width=2)
     draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
     draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
 
-    # 4. Banda WhatsApp
-    f_ws = cargar_fuente(FUENTE_TITULO, 42)
-    bbox_ws = draw.textbbox((0, 0), WHATSAPP_NUMERO, font=f_ws)
-    texto_ws_w = bbox_ws[2] - bbox_ws[0]
-
-    icono_x   = 20
-    icono_w   = 60
-    padding_r = 40
-    ws_contenido_w = icono_x + icono_w + 15 + texto_ws_w + padding_r
-
-    ws_h = 105
-    ws_y = 925
-    ws_w = ws_contenido_w
-
-    draw.rectangle([0, ws_y, ws_w - (ws_h // 2), ws_y + ws_h], fill=COLOR_VERDE_WS)
-    draw.ellipse([ws_w - ws_h, ws_y, ws_w, ws_y + ws_h], fill=COLOR_VERDE_WS)
-
-    try:
-        path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
-        icon_ws = Image.open(path_ws).convert("RGBA").resize((icono_w, icono_w), Image.LANCZOS)
-        canvas.paste(icon_ws, (icono_x, ws_y + 22), icon_ws)
-    except:
-        pass
-
-    draw.text((icono_x + icono_w + 15, ws_y + 28), WHATSAPP_NUMERO, font=f_ws, fill=COLOR_BLANCO)
-
-    # 5. Delivery con ícono
+    # 5. "Entregas todo Lima"
     try:
         path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
         icon_truck = Image.open(path_truck).convert("RGBA").resize((48, 48), Image.LANCZOS)
         canvas.paste(icon_truck, (75, 870), icon_truck)
+        txt_x = 135
+    except:
+        txt_x = 75
+    draw.text((txt_x, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
+
+    # ─────────────────────────────────────────
+    # 6. BANDA WHATSAPP — píldora centrada
+    # Medidas basadas en Canva escaladas a 1080x1080:
+    # Canva: W=326.5px, H=56.7px, Y=652.5px (canvas ~500x500 → escala x2.16)
+    # ─────────────────────────────────────────
+    WS_W    = 700          # ancho de la píldora en el canvas 1080
+    WS_H    = 110          # alto de la píldora
+    WS_Y    = 935          # posición Y (parte inferior, sobre el logo)
+    WS_X1   = (W - WS_W) // 2   # centrado horizontal
+    WS_X2   = WS_X1 + WS_W
+
+    # Dibuja la píldora centrada
+    dibujar_pilldora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
+
+    # Ícono WhatsApp dentro de la píldora
+    ICONO_W = 60
+    icono_y = WS_Y + (WS_H - ICONO_W) // 2
+    try:
+        path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
+        icon_ws = Image.open(path_ws).convert("RGBA").resize((ICONO_W, ICONO_W), Image.LANCZOS)
+        # Posición del ícono: centrado verticalmente, a la izquierda del texto
+        canvas.paste(icon_ws, (WS_X1 + 30, icono_y), icon_ws)
     except:
         pass
-    draw.text((135, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
 
-    # 6. Logo
+    # Texto WhatsApp perfectamente centrado dentro de la píldora
+    f_ws = cargar_fuente(FUENTE_TITULO, 44)
+    texto_ws = WHATSAPP_NUMERO
+    bbox_ws = draw.textbbox((0, 0), texto_ws, font=f_ws)
+    texto_w = bbox_ws[2] - bbox_ws[0]
+    texto_h = bbox_ws[3] - bbox_ws[1]
+    # Centro horizontal considerando el ícono (desplazamos texto ligeramente a la derecha)
+    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 20   # +20 para balancear con ícono izquierdo
+    texto_y = WS_Y + (WS_H - texto_h) // 2 - 3
+    draw.text((texto_x, texto_y), texto_ws, font=f_ws, fill=COLOR_BLANCO)
+
+    # 7. Logo Chilenito
     logo_w = 300
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
@@ -337,7 +361,6 @@ def generar_caption(titulo, melamina, mueble_es=""):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-    # Generamos hashtags dinámicos basados en el título
     titulo_limpio = titulo.title().replace(" ", "")
     hashtags = (
         f"#{titulo_limpio} #{titulo_limpio}AMedida "
@@ -392,85 +415,3 @@ def publicar_fb(ruta, texto):
     ok = 'id' in r.json()
     if not ok:
         print(f"⚠️  Facebook error: {r.text[:300]}")
-    return ok
-
-def publicar_ig(url_imagen, texto):
-    r1 = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
-        data={
-            'image_url': url_imagen,
-            'caption': texto,
-            'access_token': META_TOKEN
-        }
-    ).json()
-
-    c_id = r1.get('id')
-    if not c_id:
-        print(f"⚠️  Instagram container error: {r1}")
-        return False
-
-    time.sleep(15)
-    r2 = requests.post(
-        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
-        data={'creation_id': c_id, 'access_token': META_TOKEN}
-    ).json()
-
-    ok = 'id' in r2
-    if not ok:
-        print(f"⚠️  Instagram publish error: {r2}")
-    return ok
-
-# ─────────────────────────────────────────────
-# MAIN
-# ─────────────────────────────────────────────
-def main():
-    if not os.environ.get("GROQ_API_KEY"):
-        print("❌ GROQ_API_KEY no configurada")
-        return
-
-    try:
-        print("🔌 Conectando a Google Drive...")
-        service = conectar_drive()
-        logo = descargar_logo(service)
-        if not logo:
-            print("❌ No se encontró logo_principal.webp en Drive")
-            return
-
-        print("🤖 Decidiendo mueble con IA...")
-        datos = decidir_mueble_y_titulo()
-
-        print("🖼️  Generando imagen en alta resolución...")
-        foto = generar_imagen_ia(datos['desc_img'])
-
-        if not foto:
-            print("❌ No se pudo generar imagen. Abortando.")
-            return
-
-        print("🎨 Componiendo pieza gráfica...")
-        ruta = componer_pieza_grafica(foto, logo, datos)
-
-        print("📤 Subiendo a GitHub...")
-        url_p = subir_a_github(ruta)
-
-        print("✍️  Generando caption...")
-        # Pasamos mueble_es para que el caption sea más específico
-        caption = generar_caption(
-            datos['titulo'],
-            datos['melamina'],
-            datos.get('mueble_es', datos['titulo'])
-        )
-
-        print("📘 Publicando en Facebook...")
-        f_ok = publicar_fb(ruta, caption)
-
-        print("📸 Publicando en Instagram...")
-        i_ok = publicar_ig(url_p, caption) if url_p else False
-
-        print(f"\n🏁 Finalizado → Facebook: {'✅' if f_ok else '❌'} | Instagram: {'✅' if i_ok else '❌'}")
-
-    except Exception as e:
-        print(f"💥 Error crítico: {e}")
-        raise
-
-if __name__ == "__main__":
-    main()
