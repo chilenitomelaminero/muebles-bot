@@ -34,5 +34,5 @@ jobs:
           MI_API_KEY_SECRETA: ${{ secrets.MI_API_KEY_SECRETA }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
         run: python main.py
