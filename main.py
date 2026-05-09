@@ -2,13 +2,6 @@
 ====================================================================
   MUEBLES BOT - Chilenito Melaminero
   Genera imagen IA + caption + publica en Facebook E Instagram
-  
-  REQUIERE estos Secrets en GitHub:
-  - META_TOKEN, META_PAGE_ID, META_INSTAGRAM_ID
-  - MI_API_KEY_SECRETA (key de Gemini)
-  - HF_TOKEN
-  - GDRIVE_CREDENTIALS (JSON de service account)
-  - GH_TOKEN (Personal Access Token con write a Contents)
 ====================================================================
 """
 
@@ -19,6 +12,7 @@ import base64
 import requests
 import time
 import sys
+import urllib.parse
 from PIL import Image
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -32,18 +26,15 @@ import google.generativeai as genai
 ID_CARPETA_LOGO = "1EKyQ0HCDd2gp89_0FAdGClZ9KO3fvcUN"
 ID_PUBLICACIONES = "1ajUOSc3fw52khPvXF2XgVF77soWCwT1z"
 
-HF_TOKEN = os.environ.get("HF_TOKEN")
 META_TOKEN = os.environ.get("META_TOKEN")
 FB_PAGE_ID = os.environ.get("META_PAGE_ID")
 IG_USER_ID = os.environ.get("META_INSTAGRAM_ID")
-GEMINI_KEY = os.environ.get("MI_API_KEY_SECRETA")  # ← nombre que tenía Paola
+GEMINI_KEY = os.environ.get("MI_API_KEY_SECRETA")
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
-API_URL_HF = "https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0"
-
 # ====================================================================
-# VALIDACIÓN DE CREDENCIALES
+# VALIDACIÓN
 # ====================================================================
 
 def validar_credenciales():
@@ -53,24 +44,18 @@ def validar_credenciales():
     if not FB_PAGE_ID: faltan.append("META_PAGE_ID")
     if not IG_USER_ID: faltan.append("META_INSTAGRAM_ID")
     if not GEMINI_KEY: faltan.append("MI_API_KEY_SECRETA")
-    if not HF_TOKEN: faltan.append("HF_TOKEN")
     if not GH_TOKEN: faltan.append("GH_TOKEN")
     
     if faltan:
         print(f"   ❌ FALTAN ESTOS SECRETS: {', '.join(faltan)}")
         sys.exit(1)
-    
     print("   ✅ Todas las credenciales presentes")
-
-# ====================================================================
-# GEMINI
-# ====================================================================
 
 genai.configure(api_key=GEMINI_KEY) if GEMINI_KEY else None
 model_gemini = genai.GenerativeModel('gemini-1.5-flash') if GEMINI_KEY else None
 
 # ====================================================================
-# GOOGLE DRIVE - DESCARGAR LOGO
+# GOOGLE DRIVE
 # ====================================================================
 
 def conectar_drive():
@@ -93,8 +78,7 @@ def descargar_logo(service):
     archivos = res.get('files', [])
     
     if not archivos:
-        print(f"   ❌ No se encontró 'logo_principal.webp' en la carpeta")
-        print(f"   ℹ️  Carpeta ID: {ID_CARPETA_LOGO}")
+        print(f"   ❌ No se encontró 'logo_principal.webp'")
         return None
     
     request = service.files().get_media(fileId=archivos[0]['id'])
@@ -108,34 +92,31 @@ def descargar_logo(service):
     return Image.open(fh)
 
 # ====================================================================
-# GENERAR IMAGEN CON IA (Hugging Face)
+# GENERAR IMAGEN CON POLLINATIONS AI (gratis, sin API key)
 # ====================================================================
 
 def generar_imagen_ia(descripcion):
     print(f"\n🎨 Generando imagen IA del mueble...")
     print(f"   📝 Descripción: {descripcion}")
     
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    prompt = f"Professional photography of a {descripcion}, high quality melamine wood texture, realistic lighting, workshop background, 8k resolution."
+    prompt = f"Professional photography of {descripcion}, high quality melamine wood texture, realistic lighting, modern showroom background, 8k resolution"
+    prompt_encoded = urllib.parse.quote(prompt)
     
-    for intento in range(3):
-        print(f"   Intento {intento + 1}/3...")
-        response = requests.post(API_URL_HF, headers=headers, json={"inputs": prompt}, timeout=120)
-        
+    url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&model=flux&nologo=true"
+    
+    print(f"   ⏳ Llamando a Pollinations AI (puede tardar 20-40 seg)...")
+    
+    try:
+        response = requests.get(url, timeout=120)
         if response.status_code == 200:
             print("   ✅ Imagen generada por IA")
             return Image.open(io.BytesIO(response.content))
-        
-        if response.status_code == 503:
-            print(f"   ⏳ Modelo cargando, esperando 20 segundos...")
-            time.sleep(20)
-            continue
-        
-        print(f"   ❌ Error HF (status {response.status_code}): {response.text[:200]}")
+        else:
+            print(f"   ❌ Error Pollinations (status {response.status_code})")
+            return None
+    except Exception as e:
+        print(f"   ❌ Excepción: {e}")
         return None
-    
-    print("   ❌ Hugging Face no respondió tras 3 intentos")
-    return None
 
 # ====================================================================
 # MARCA DE AGUA
@@ -153,16 +134,15 @@ def aplicar_marca_agua(foto_ia, img_logo):
     final = foto.convert("RGB")
     ruta = "post_final.jpg"
     final.save(ruta, "JPEG", quality=95)
-    print(f"   ✅ Imagen final guardada: {ruta}")
+    print(f"   ✅ Imagen final guardada")
     return ruta
 
 # ====================================================================
-# SUBIR IMAGEN A GITHUB
+# SUBIR A GITHUB
 # ====================================================================
 
 def subir_imagen_a_github(ruta_local):
-    print("\n☁️  Subiendo imagen a GitHub para tener URL pública...")
-    
+    print("\n☁️  Subiendo imagen a GitHub...")
     timestamp = int(time.time())
     nombre_remoto = f"imagenes_publicadas/post_{timestamp}.jpg"
     
@@ -184,15 +164,14 @@ def subir_imagen_a_github(ruta_local):
     
     if response.status_code in (200, 201):
         url_publica = f"https://raw.githubusercontent.com/{GH_REPO}/main/{nombre_remoto}"
-        print(f"   ✅ Imagen subida a GitHub")
-        print(f"   🔗 URL: {url_publica}")
+        print(f"   ✅ URL: {url_publica}")
         return url_publica
     
-    print(f"   ❌ Error subiendo a GitHub: {response.status_code} - {response.text[:300]}")
+    print(f"   ❌ Error: {response.status_code} - {response.text[:300]}")
     return None
 
 # ====================================================================
-# PUBLICAR EN FACEBOOK
+# PUBLICAR
 # ====================================================================
 
 def publicar_en_facebook(ruta_foto, texto):
@@ -205,15 +184,10 @@ def publicar_en_facebook(ruta_foto, texto):
     
     data = r.json()
     if 'id' in data:
-        print(f"   ✅ ¡Publicado en Facebook! ID: {data['id']}")
+        print(f"   ✅ ¡Publicado! ID: {data['id']}")
         return True
-    
-    print(f"   ❌ Error en Facebook: {json.dumps(data, indent=2)}")
+    print(f"   ❌ Error: {json.dumps(data, indent=2)}")
     return False
-
-# ====================================================================
-# PUBLICAR EN INSTAGRAM
-# ====================================================================
 
 def publicar_en_instagram(url_imagen_publica, texto):
     print("\n📸 Publicando en Instagram...")
@@ -229,12 +203,11 @@ def publicar_en_instagram(url_imagen_publica, texto):
     
     creation_id = res.get('id')
     if not creation_id:
-        print(f"   ❌ Error creando contenedor: {json.dumps(res, indent=2)}")
+        print(f"   ❌ Error: {json.dumps(res, indent=2)}")
         return False
     
     print(f"   ✅ Contenedor: {creation_id}")
-    
-    print("   ⏳ Esperando 7 segundos a que Meta procese...")
+    print("   ⏳ Esperando 7 seg...")
     time.sleep(7)
     
     print("   2/2 Publicando...")
@@ -246,10 +219,9 @@ def publicar_en_instagram(url_imagen_publica, texto):
     ).json()
     
     if 'id' in res_pub:
-        print(f"   ✅ ¡Publicado en Instagram! ID: {res_pub['id']}")
+        print(f"   ✅ ¡Publicado! ID: {res_pub['id']}")
         return True
-    
-    print(f"   ❌ Error publicando: {json.dumps(res_pub, indent=2)}")
+    print(f"   ❌ Error: {json.dumps(res_pub, indent=2)}")
     return False
 
 # ====================================================================
@@ -264,29 +236,22 @@ def main():
     validar_credenciales()
     
     try:
-        # 1. Conectar a Drive y descargar logo
         service = conectar_drive()
         logo = descargar_logo(service)
         if not logo:
             print("\n💥 No se pudo descargar el logo. Abortando.")
             sys.exit(1)
         
-        # 2. Definir el mueble (después esto vendrá de un catálogo)
         mueble_del_dia = "Centro de entretenimiento moderno en melamina color siena y blanco con cajones push open"
         
-        # 3. Generar imagen IA
         foto_mueble = generar_imagen_ia(mueble_del_dia)
         if not foto_mueble:
             print("\n💥 No se pudo generar la imagen IA. Abortando.")
             sys.exit(1)
         
-        # 4. Aplicar marca de agua
         ruta_archivo = aplicar_marca_agua(foto_mueble, logo)
-        
-        # 5. Subir a GitHub para URL pública
         url_imagen_publica = subir_imagen_a_github(ruta_archivo)
         
-        # 6. Generar caption con Gemini
         print("\n✍️  Generando caption con Gemini...")
         prompt_texto = (
             f"Escribe un post de Facebook e Instagram para 'Chilenito Melaminero' "
@@ -297,19 +262,13 @@ def main():
         caption = model_gemini.generate_content(prompt_texto).text
         print(f"   ✅ Caption generado ({len(caption)} caracteres)")
         
-        # 7. Publicar
         fb_ok = publicar_en_facebook(ruta_archivo, caption)
         
         ig_ok = False
         if url_imagen_publica:
             ig_ok = publicar_en_instagram(url_imagen_publica, caption)
-        else:
-            print("\n📸 Instagram saltado (no hay URL pública)")
         
-        # 8. Resumen
         print("\n" + "=" * 60)
-        print("  RESUMEN")
-        print("=" * 60)
         print(f"  Facebook:  {'✅ OK' if fb_ok else '❌ FALLÓ'}")
         print(f"  Instagram: {'✅ OK' if ig_ok else '❌ FALLÓ'}")
         print("=" * 60)
