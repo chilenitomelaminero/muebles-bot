@@ -35,29 +35,32 @@ FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 # COLORES CONSTANTES
 COLOR_AZUL      = (27, 58, 107)
-COLOR_VERDE_WS  = (37, 211, 102)
+COLOR_VERDE_WS  = (94, 177, 7)    # #5EB107 — verde lima extraído del diseño original
 COLOR_BLANCO    = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
 
 # ─────────────────────────────────────────────
 # CATÁLOGOS — garantizan variedad y prompts correctos
 # ─────────────────────────────────────────────
+
+# Formato: (nombre_completo, titulo_corto_display, prompt_ingles)
+# titulo_corto_display = lo que aparece en el post en MAYÚSCULAS (1-2 palabras máx.)
 CATALOGO_MUEBLES = [
-    ("Ropero 4 Puertas",      "modern wardrobe with 4 sliding doors, melamine finish"),
-    ("Cómoda con Espejo",     "bedroom dresser with large rectangular mirror, melamine wood finish"),
-    ("Mesa de Comedor",       "rectangular modern dining table with 6 chairs, melamine top"),
-    ("Escritorio con Cajonera","office desk with integrated 3-drawer pedestal, melamine finish"),
-    ("Rack para TV",          "modern TV stand unit with open shelves and cabinets, melamine finish"),
-    ("Estante Flotante",      "minimalist wall-mounted floating shelves unit, melamine finish"),
-    ("Velador 2 Cajones",     "compact bedside table with 2 drawers, melamine finish"),
-    ("Zapatera 12 Pares",     "tall shoe cabinet rack for 12 pairs, melamine finish"),
-    ("Librero 5 Niveles",     "tall 5-shelf open bookcase, melamine finish"),
-    ("Cajonera 6 Cajones",    "wide 6-drawer chest of drawers, melamine finish"),
-    ("Closet Empotrado",      "built-in walk-in closet with shelves and hanging rail, melamine finish"),
-    ("Mesa de Centro",        "modern rectangular coffee table with lower shelf, melamine finish"),
-    ("Mueble de Cocina",      "modern kitchen base cabinet with countertop and doors, melamine finish"),
-    ("Auxiliar de Baño",      "bathroom storage cabinet with mirror door, melamine finish"),
-    ("Escritorio Esquinero",  "L-shaped corner office desk with shelves, melamine finish"),
+    ("Ropero 4 Puertas",       "ROPERO",        "modern wardrobe with 4 sliding doors, melamine finish"),
+    ("Cómoda con Espejo",      "CÓMODA",        "bedroom dresser with large rectangular mirror, melamine wood finish"),
+    ("Mesa de Comedor",        "MESA COMEDOR",  "rectangular modern dining table with 6 chairs, melamine top"),
+    ("Escritorio con Cajonera","ESCRITORIO",    "office desk with integrated 3-drawer pedestal, melamine finish"),
+    ("Rack para TV",           "RACK TV",       "modern TV stand unit with open shelves and cabinets, melamine finish"),
+    ("Estante Flotante",       "ESTANTE",       "minimalist wall-mounted floating shelves unit, melamine finish"),
+    ("Velador 2 Cajones",      "VELADOR",       "compact bedside table with 2 drawers, melamine finish"),
+    ("Zapatera 12 Pares",      "ZAPATERA",      "tall shoe cabinet rack for 12 pairs, melamine finish"),
+    ("Librero 5 Niveles",      "LIBRERO",       "tall 5-shelf open bookcase, melamine finish"),
+    ("Cajonera 6 Cajones",     "CAJONERA",      "wide 6-drawer chest of drawers, melamine finish"),
+    ("Closet Empotrado",       "CLOSET",        "built-in walk-in closet with shelves and hanging rail, melamine finish"),
+    ("Mesa de Centro",         "MESA CENTRO",   "modern rectangular coffee table with lower shelf, melamine finish"),
+    ("Mueble de Cocina",       "COCINA",        "modern kitchen base cabinet with countertop and doors, melamine finish"),
+    ("Auxiliar de Baño",       "AUXILIAR BAÑO", "bathroom storage cabinet with mirror door, melamine finish"),
+    ("Escritorio Esquinero",   "ESCRITORIO",    "L-shaped corner office desk with shelves, melamine finish"),
 ]
 
 CATALOGO_MELAMINAS = [
@@ -133,7 +136,7 @@ def descargar_logo(service):
 # ─────────────────────────────────────────────
 def decidir_mueble_y_titulo():
     # Selección aleatoria del catálogo — nunca deja al LLM "inventar" el mueble
-    mueble_es, mueble_en = random.choice(CATALOGO_MUEBLES)
+    mueble_es, titulo_corto, mueble_en = random.choice(CATALOGO_MUEBLES)
     melamina_nombre, melamina_hex = random.choice(CATALOGO_MELAMINAS)
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -183,8 +186,9 @@ def decidir_mueble_y_titulo():
     # Garantizamos que el hex siempre sea del catálogo, no inventado por Groq
     datos['color_hex'] = melamina_hex
     datos['melamina'] = melamina_nombre
+    datos['titulo'] = titulo_corto   # ← Siempre el título corto del catálogo, nunca el de Groq
 
-    print(f"🪵  Mueble: {datos['titulo']} | Melamina: {melamina_nombre}")
+    print(f"🪵  Mueble: {titulo_corto} | Melamina: {melamina_nombre}")
     print(f"📝  Prompt imagen: {datos['desc_img'][:120]}...")
     return datos
 
@@ -281,20 +285,33 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
     draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
 
-    # 4. Banda WhatsApp (recta izquierda, curva derecha)
-    ws_h, ws_y, ws_w = 105, 925, 490
-    draw.rectangle([0, ws_y, ws_w - 55, ws_y + ws_h], fill=COLOR_VERDE_WS)
-    draw.ellipse([ws_w - 110, ws_y, ws_w, ws_y + ws_h], fill=COLOR_VERDE_WS)
+    # 4. Banda WhatsApp — ancho calculado para que el número entre siempre
+    # Medimos el texto primero para saber exactamente cuánto espacio necesita
+    f_ws = cargar_fuente(FUENTE_TITULO, 42)
+    bbox_ws = draw.textbbox((0, 0), WHATSAPP_NUMERO, font=f_ws)
+    texto_ws_w = bbox_ws[2] - bbox_ws[0]
+
+    icono_x    = 20          # posición X del ícono WS
+    icono_w    = 60          # ancho del ícono
+    padding_r  = 40          # espacio extra a la derecha del texto
+    ws_contenido_w = icono_x + icono_w + 15 + texto_ws_w + padding_r  # ancho real necesario
+
+    ws_h  = 105
+    ws_y  = 925
+    ws_w  = ws_contenido_w   # ancho dinámico = nunca se sale el texto
+
+    # Banda: rectángulo + semicírculo redondeado derecho
+    draw.rectangle([0, ws_y, ws_w - (ws_h // 2), ws_y + ws_h], fill=COLOR_VERDE_WS)
+    draw.ellipse([ws_w - ws_h, ws_y, ws_w, ws_y + ws_h], fill=COLOR_VERDE_WS)
 
     try:
         path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
-        icon_ws = Image.open(path_ws).convert("RGBA").resize((60, 60), Image.LANCZOS)
-        canvas.paste(icon_ws, (30, ws_y + 22), icon_ws)
+        icon_ws = Image.open(path_ws).convert("RGBA").resize((icono_w, icono_w), Image.LANCZOS)
+        canvas.paste(icon_ws, (icono_x, ws_y + 22), icon_ws)
     except:
         pass
 
-    f_ws = cargar_fuente(FUENTE_TITULO, 46)
-    draw.text((105, ws_y + 22), WHATSAPP_NUMERO, font=f_ws, fill=COLOR_BLANCO)
+    draw.text((icono_x + icono_w + 15, ws_y + 28), WHATSAPP_NUMERO, font=f_ws, fill=COLOR_BLANCO)
 
     # 5. Delivery con ícono
     try:
@@ -305,11 +322,13 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
         pass
     draw.text((135, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
 
-    # 6. Logo
-    logo_w = 230
+    # 6. Logo — más grande (era 230, ahora 300)
+    logo_w = 300
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
-    canvas.paste(logo_res, (W - logo_w - 60, H - logo_h - 60), logo_res)
+    logo_x = W - logo_w - 40
+    logo_y = H - logo_h - 30
+    canvas.paste(logo_res, (logo_x, logo_y), logo_res)
 
     # Guardar en máxima calidad
     ruta = "post_final.jpg"
