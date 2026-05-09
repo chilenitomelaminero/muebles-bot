@@ -1,6 +1,7 @@
 """
 MUEBLES BOT - Chilenito Melaminero
 Genera imagen IA + caption Groq + publica en FB e IG
+Horario aleatorio diario entre 9:00 y 9:59 AM Lima
 """
 
 import os
@@ -10,7 +11,9 @@ import base64
 import requests
 import time
 import sys
+import random
 import urllib.parse
+from datetime import datetime, timezone, timedelta
 from PIL import Image
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -25,6 +28,39 @@ IG_USER_ID = os.environ.get("META_INSTAGRAM_ID")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
+
+
+def toca_publicar_hoy():
+    """
+    Decide si esta ejecución del cron debe publicar.
+    Genera un minuto aleatorio entre 0-59 (semilla = fecha de hoy)
+    para que cada día publique a un horario distinto entre 9:00-9:59 Lima.
+    Si se ejecuta manualmente (workflow_dispatch), siempre publica.
+    """
+    # Si fue ejecución manual, siempre publicar
+    if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        print("   🖱️  Ejecución manual detectada → publica siempre")
+        return True
+    
+    ahora_utc = datetime.now(timezone.utc)
+    lima = ahora_utc - timedelta(hours=5)
+    
+    # Semilla = fecha de hoy (mismo minuto aleatorio durante todo el día)
+    semilla = int(lima.strftime("%Y%m%d"))
+    random.seed(semilla)
+    minuto_objetivo = random.randint(0, 59)
+    
+    print(f"   📅 Hora actual Lima: {lima.strftime('%H:%M')}")
+    print(f"   🎯 Minuto objetivo hoy: 9:{minuto_objetivo:02d}")
+    
+    # Acepta margen de 4 min (el cron corre cada 5 min)
+    if lima.hour == 9:
+        diferencia = abs(lima.minute - minuto_objetivo)
+        if diferencia <= 4:
+            print(f"   ✅ ¡Es la hora! (diferencia: {diferencia} min)")
+            return True
+    
+    return False
 
 
 def validar_credenciales():
@@ -197,7 +233,15 @@ def main():
     print("=" * 60)
     print("  🚀 MUEBLES BOT - Chilenito Melaminero")
     print("=" * 60)
+    
+    # Verificar si toca publicar
+    print("\n⏰ Verificando horario de publicación...")
+    if not toca_publicar_hoy():
+        print("\n⏭️  No es la hora de publicar hoy, saliendo sin error.")
+        sys.exit(0)
+    
     validar_credenciales()
+    
     try:
         service = conectar_drive()
         logo = descargar_logo(service)
