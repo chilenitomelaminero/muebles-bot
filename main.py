@@ -35,16 +35,13 @@ FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 # COLORES CONSTANTES
 COLOR_AZUL      = (27, 58, 107)
-COLOR_VERDE_WS  = (94, 177, 7)    # #5EB107 — verde lima extraído del diseño original
+COLOR_VERDE_WS  = (94, 177, 7)
 COLOR_BLANCO    = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
 
 # ─────────────────────────────────────────────
-# CATÁLOGOS — garantizan variedad y prompts correctos
+# CATÁLOGOS
 # ─────────────────────────────────────────────
-
-# Formato: (nombre_completo, titulo_corto_display, prompt_ingles)
-# titulo_corto_display = lo que aparece en el post en MAYÚSCULAS (1-2 palabras máx.)
 CATALOGO_MUEBLES = [
     ("Ropero 4 Puertas",       "ROPERO",        "modern wardrobe with 4 sliding doors, melamine finish"),
     ("Cómoda con Espejo",      "CÓMODA",        "bedroom dresser with large rectangular mirror, melamine wood finish"),
@@ -101,7 +98,6 @@ def ajustar_tamano_fuente(texto, ruta_fuente, tamano_maximo, ancho_maximo):
     return fuente
 
 def hex_a_rgb(hex_color):
-    """Convierte '#RRGGBB' a tupla (R, G, B)."""
     hex_color = hex_color.lstrip('#')
     return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
@@ -135,7 +131,6 @@ def descargar_logo(service):
 # IA — DECISIÓN DE MUEBLE
 # ─────────────────────────────────────────────
 def decidir_mueble_y_titulo():
-    # Selección aleatoria del catálogo — nunca deja al LLM "inventar" el mueble
     mueble_es, titulo_corto, mueble_en = random.choice(CATALOGO_MUEBLES)
     melamina_nombre, melamina_hex = random.choice(CATALOGO_MELAMINAS)
 
@@ -164,17 +159,16 @@ def decidir_mueble_y_titulo():
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.4,   # Bajo = más predecible y estructurado
+        "temperature": 0.4,
         "response_format": {"type": "json_object"}
     }
 
     r = requests.post(url, headers=headers, json=payload).json()
     datos = json.loads(r['choices'][0]['message']['content'])
 
-    # Fallback de seguridad: si Groq ignoró las reglas, reconstruimos el prompt
     desc = datos.get('desc_img', '')
     if 'product photography' not in desc.lower():
-        print("⚠️  Groq ignoró el formato del prompt. Aplicando fallback.")
+        print("⚠️  Groq ignoró el formato. Aplicando fallback.")
         datos['desc_img'] = (
             f"Professional product photography of a {mueble_en}, "
             f"melamine finish in {melamina_nombre} tone, "
@@ -183,24 +177,19 @@ def decidir_mueble_y_titulo():
             "studio lighting, ultra sharp focus, photorealistic render, 8k resolution"
         )
 
-    # Garantizamos que el hex siempre sea del catálogo, no inventado por Groq
     datos['color_hex'] = melamina_hex
     datos['melamina'] = melamina_nombre
-    datos['titulo'] = titulo_corto   # ← Siempre el título corto del catálogo, nunca el de Groq
+    datos['titulo'] = titulo_corto
+    datos['mueble_es'] = mueble_es
 
     print(f"🪵  Mueble: {titulo_corto} | Melamina: {melamina_nombre}")
     print(f"📝  Prompt imagen: {datos['desc_img'][:120]}...")
     return datos
 
 # ─────────────────────────────────────────────
-# IA — GENERACIÓN DE IMAGEN (ALTA RESOLUCIÓN)
+# IA — GENERACIÓN DE IMAGEN
 # ─────────────────────────────────────────────
 def generar_imagen_ia(desc, max_intentos=3):
-    """
-    Genera imagen en 2160x2160 (2K) con Flux y la escala a 1080x1080 para el post.
-    Escalar desde resolución mayor = imagen nítida, sin pixelado.
-    """
-    # Prompt reforzado con keywords de calidad para Flux
     prompt_final = (
         f"{desc} "
         "sharp edges, no blur, crisp details, high-end furniture catalog photography, "
@@ -210,16 +199,13 @@ def generar_imagen_ia(desc, max_intentos=3):
     for intento in range(max_intentos):
         try:
             seed = random.randint(1, 999999)
-            
-            # ✅ RESOLUCIÓN ALTA: pedimos 2160x2160 y luego la reducimos a 1080x1080
-            # Esto elimina el pixelado y da textura de madera/melamina nítida
             url = (
                 f"https://image.pollinations.ai/prompt/{urllib.parse.quote(prompt_final)}"
                 f"?width=2160&height=2160&model=flux&nologo=true&seed={seed}&enhance=true"
             )
 
             print(f"🎨 Generando imagen {intento+1}/{max_intentos} (seed={seed}, 2160px)...")
-            res = requests.get(url, timeout=240)  # Más tiempo por la resolución mayor
+            res = requests.get(url, timeout=240)
 
             if res.status_code != 200:
                 print(f"⚠️  HTTP {res.status_code}, reintentando...")
@@ -227,10 +213,8 @@ def generar_imagen_ia(desc, max_intentos=3):
                 continue
 
             img = Image.open(io.BytesIO(res.content))
-
-            # ─── Validación: rechaza imágenes casi completamente blancas (error silencioso) ───
             img_rgb = img.convert("RGB")
-            muestra = img_rgb.resize((100, 100))  # Muestra pequeña para calcular rápido
+            muestra = img_rgb.resize((100, 100))
             pixels = list(muestra.getdata())
             blancos = sum(1 for p in pixels if p[0] > 245 and p[1] > 245 and p[2] > 245)
             pct_blanco = blancos / len(pixels)
@@ -240,16 +224,15 @@ def generar_imagen_ia(desc, max_intentos=3):
                 time.sleep(8)
                 continue
 
-            # ─── Escalar de 2160 → 1080 con LANCZOS (máxima calidad de downscaling) ───
             img_hd = img.resize((1080, 1080), Image.LANCZOS)
-            print(f"✅ Imagen válida y escalada a 1080px ({pct_blanco:.0%} fondo blanco)")
+            print(f"✅ Imagen válida ({pct_blanco:.0%} fondo blanco)")
             return img_hd
 
         except Exception as e:
             print(f"⚠️  Error intento {intento+1}: {e}")
             time.sleep(10)
 
-    print("❌ No se pudo generar una imagen válida tras todos los intentos")
+    print("❌ No se pudo generar imagen válida")
     return None
 
 # ─────────────────────────────────────────────
@@ -277,30 +260,27 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
     draw.text((W / 2 - 30, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 3. Muestra de color de melamina dinámica
+    # 3. Muestra de color de melamina
     color_mel = hex_a_rgb(datos.get('color_hex', '#8B4513'))
     draw.rounded_rectangle([70, 245, 170, 345], radius=15, fill=color_mel)
-    # Borde sutil para melaminas muy claras
     draw.rounded_rectangle([70, 245, 170, 345], radius=15, outline=COLOR_AZUL, width=2)
     draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
     draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
 
-    # 4. Banda WhatsApp — ancho calculado para que el número entre siempre
-    # Medimos el texto primero para saber exactamente cuánto espacio necesita
+    # 4. Banda WhatsApp
     f_ws = cargar_fuente(FUENTE_TITULO, 42)
     bbox_ws = draw.textbbox((0, 0), WHATSAPP_NUMERO, font=f_ws)
     texto_ws_w = bbox_ws[2] - bbox_ws[0]
 
-    icono_x    = 20          # posición X del ícono WS
-    icono_w    = 60          # ancho del ícono
-    padding_r  = 40          # espacio extra a la derecha del texto
-    ws_contenido_w = icono_x + icono_w + 15 + texto_ws_w + padding_r  # ancho real necesario
+    icono_x   = 20
+    icono_w   = 60
+    padding_r = 40
+    ws_contenido_w = icono_x + icono_w + 15 + texto_ws_w + padding_r
 
-    ws_h  = 105
-    ws_y  = 925
-    ws_w  = ws_contenido_w   # ancho dinámico = nunca se sale el texto
+    ws_h = 105
+    ws_y = 925
+    ws_w = ws_contenido_w
 
-    # Banda: rectángulo + semicírculo redondeado derecho
     draw.rectangle([0, ws_y, ws_w - (ws_h // 2), ws_y + ws_h], fill=COLOR_VERDE_WS)
     draw.ellipse([ws_w - ws_h, ws_y, ws_w, ws_y + ws_h], fill=COLOR_VERDE_WS)
 
@@ -322,7 +302,7 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
         pass
     draw.text((135, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
 
-    # 6. Logo — más grande (era 230, ahora 300)
+    # 6. Logo
     logo_w = 300
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
@@ -330,9 +310,8 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     logo_y = H - logo_h - 30
     canvas.paste(logo_res, (logo_x, logo_y), logo_res)
 
-    # Guardar en máxima calidad
     ruta = "post_final.jpg"
-    canvas.save(ruta, "JPEG", quality=97, subsampling=0)  # subsampling=0 = máxima nitidez JPEG
+    canvas.save(ruta, "JPEG", quality=97, subsampling=0)
     return ruta
 
 # ─────────────────────────────────────────────
@@ -352,24 +331,52 @@ def subir_a_github(ruta):
     return None
 
 # ─────────────────────────────────────────────
-# CAPTION
+# CAPTION — ESTILO CHILENITO MELAMINERO
 # ─────────────────────────────────────────────
-def generar_caption(titulo, melamina):
+def generar_caption(titulo, melamina, mueble_es=""):
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}"}
-    prompt = (
-        f"Escribe un caption para Instagram/Facebook de un mueble a medida: '{titulo}' "
-        f"en melamina {melamina}. Fabricado en SJL, Lima, Perú. "
-        f"Incluye el número de WhatsApp {WHATSAPP_NUMERO}. "
-        "Máximo 5 líneas. Usa emojis relevantes. Cierra con 3 hashtags populares de muebles Perú."
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+
+    # Generamos hashtags dinámicos basados en el título
+    titulo_limpio = titulo.title().replace(" ", "")
+    hashtags = (
+        f"#{titulo_limpio} #{titulo_limpio}AMedida "
+        f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
+        f"#ElChilenitoMelaminero #OrganizacionHogar"
     )
+
+    prompt = (
+        f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
+        f"Escribe un post de Facebook e Instagram para: {mueble_es or titulo} en melamina {melamina}.\n\n"
+        f"Sigue EXACTAMENTE esta estructura, respetando los saltos de línea:\n\n"
+        f"[LÍNEA 1] Una frase gancho atractiva sobre el {titulo} a medida. (sin emoji al inicio)\n\n"
+        f"[LÍNEA 2] Describe en 1-2 oraciones el beneficio principal de tener este mueble personalizado.\n\n"
+        f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
+        f"[CARACTERÍSTICAS] Lista estas 6 características con emoji ✅ al inicio, una por línea:\n"
+        f"✅ Diseño personalizado según tu espacio\n"
+        f"✅ [característica interna específica del {titulo}, ej: distribución en colgadores, cajones, repisas]\n"
+        f"✅ Colores disponibles a elección (melamina {melamina} y más)\n"
+        f"✅ Material resistente y duradero\n"
+        f"✅ Precios accesibles\n"
+        f"✅ Entregas a domicilio en SJL y todo Lima\n\n"
+        f"[LÍNEA MOTIVADORA] Una oración que motive al cliente a dar el paso.\n\n"
+        f"[CTA] Escribe EXACTAMENTE: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada'\n\n"
+        f"[HASHTAGS] Escribe EXACTAMENTE estos hashtags:\n"
+        f"{hashtags}\n\n"
+        f"IMPORTANTE: Solo el texto del post, sin explicaciones, sin corchetes, en español peruano natural."
+    )
+
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
+        "temperature": 0.7,
+        "max_tokens": 900
     }
+
     r = requests.post(url, headers=headers, json=payload).json()
-    return r['choices'][0]['message']['content']
+    caption = r['choices'][0]['message']['content']
+    print(f"✅ Caption generado ({len(caption)} caracteres)")
+    return caption
 
 # ─────────────────────────────────────────────
 # PUBLICACIÓN META
@@ -388,7 +395,6 @@ def publicar_fb(ruta, texto):
     return ok
 
 def publicar_ig(url_imagen, texto):
-    # Paso 1: Crear contenedor
     r1 = requests.post(
         f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
         data={
@@ -403,7 +409,6 @@ def publicar_ig(url_imagen, texto):
         print(f"⚠️  Instagram container error: {r1}")
         return False
 
-    # Paso 2: Esperar y publicar
     time.sleep(15)
     r2 = requests.post(
         f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
@@ -448,7 +453,12 @@ def main():
         url_p = subir_a_github(ruta)
 
         print("✍️  Generando caption...")
-        caption = generar_caption(datos['titulo'], datos['melamina'])
+        # Pasamos mueble_es para que el caption sea más específico
+        caption = generar_caption(
+            datos['titulo'],
+            datos['melamina'],
+            datos.get('mueble_es', datos['titulo'])
+        )
 
         print("📘 Publicando en Facebook...")
         f_ok = publicar_fb(ruta, caption)
