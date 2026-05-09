@@ -31,10 +31,10 @@ GH_REPO          = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/mueb
 RUTA_ICONOS    = "icono"
 FUENTE_TITULO  = "fonts/Montserrat-ExtraBold.ttf"
 FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
-FUENTE_REGULAR = "fonts/GlacialIndifference-Regular.otf"  # ← ACTUALIZADA
+FUENTE_REGULAR = "fonts/GlacialIndifference-Regular.otf"
 
 # COLORES CONSTANTES
-COLOR_AZUL      = (0, 56, 159)      # ← #00389F
+COLOR_AZUL      = (0, 56, 159)
 COLOR_VERDE_WS  = (94, 177, 7)
 COLOR_BLANCO    = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
@@ -239,11 +239,10 @@ def generar_imagen_ia(desc, max_intentos=3):
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def dibujar_pildora(draw, x1, y1, x2, y2, color):
-    """Píldora ovalada solo en el extremo derecho (izquierdo pegado al borde)."""
+    """Píldora completamente ovalada en ambos extremos."""
     radio = (y2 - y1) // 2
-    # Rectángulo principal
-    draw.rectangle([x1, y1, x2 - radio, y2], fill=color)
-    # Semicírculo solo en el extremo derecho
+    draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
+    draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
     draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
 
 
@@ -252,7 +251,7 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
     draw = ImageDraw.Draw(canvas)
 
-    # 1. Foto Mueble — centrada verticalmente en zona media
+    # 1. Foto Mueble
     foto_w = 950
     ratio = foto_w / foto_mueble.width
     foto_h = int(foto_mueble.height * ratio)
@@ -264,25 +263,24 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     # 2. Título superior centrado
     f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 100, W - 100)
     bbox_t = draw.textbbox((0, 0), datos['titulo'], font=f_tit)
-    draw.text(((W - (bbox_t[2] - bbox_t[0])) / 2, 30), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
+    tit_w = bbox_t[2] - bbox_t[0]
+    tit_x = (W - tit_w) / 2
+    draw.text((tit_x, 30), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
 
-    # 3. Cursiva "a medida" — pegada debajo del título, ligeramente a la derecha
+    # 3. Cursiva "a medida" — alineada a la derecha del título
     f_cur = cargar_fuente(FUENTE_CURSIVA, 80)
     bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
     cur_w = bbox_c[2] - bbox_c[0]
-    # Posición: centrada respecto al título pero ligeramente desplazada a la derecha
-    tit_w = bbox_t[2] - bbox_t[0]
-    tit_x = (W - tit_w) / 2
     draw.text((tit_x + tit_w - cur_w + 20, 128), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 4. Muestra de color de melamina — arriba izquierda debajo del título
+    # 4. Muestra de color de melamina
     color_mel = hex_a_rgb(datos.get('color_hex', '#8B4513'))
     draw.rounded_rectangle([60, 230, 160, 330], radius=15, fill=color_mel)
     draw.rounded_rectangle([60, 230, 160, 330], radius=15, outline=COLOR_AZUL, width=2)
     draw.text((175, 238), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 24), fill=COLOR_AZUL)
     draw.text((175, 268), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 42), fill=COLOR_AZUL)
 
-    # 5. Logo Chilenito — esquina inferior derecha, ENCIMA de la banda verde
+    # 5. Logo Chilenito — esquina inferior derecha
     logo_w = 260
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
@@ -291,23 +289,21 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     canvas.paste(logo_res, (logo_x, logo_y), logo_res)
 
     # ─────────────────────────────────────────────────────────────
-    # 6. BANDA WHATSAPP
-    # Como en la imagen 2:
-    # - Empieza desde el borde izquierdo (x=0)
-    # - Termina antes del logo (deja espacio para el logo a la derecha)
-    # - Ovalada solo en el extremo derecho
-    # - Pegada al borde inferior
+    # 6. BANDA WHATSAPP — medidas exactas de Canva escaladas a 1080
+    # Canva: 326.5 x 56.7px en canvas 1408.3 x 804.5px
+    # Factor escala: 1080 / 804.5 = 1.343
     # ─────────────────────────────────────────────────────────────
-    WS_H  = 120          # alto de la banda
-    WS_Y  = H - WS_H    # pegada al borde inferior (Y = 960)
-    WS_X1 = 0            # empieza desde el borde izquierdo
-    WS_X2 = W - logo_w - 10  # termina antes del logo
+    WS_W  = 250          # 326.5 × 0.767 ≈ 250px
+    WS_H  = 43           # 56.7 × 0.767 ≈ 43px
+    WS_Y  = 876          # 652.5 × 1.343 ≈ 876px
+    WS_X1 = 20           # empieza desde borde izquierdo
+    WS_X2 = WS_X1 + WS_W
 
     dibujar_pildora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
 
-    # Ícono WhatsApp — izquierda dentro de la banda
-    ICONO_W = 72
-    icono_x = 25
+    # Ícono WhatsApp dentro de la banda
+    ICONO_W = 28
+    icono_x = WS_X1 + 8
     icono_y = WS_Y + (WS_H - ICONO_W) // 2
     try:
         path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
@@ -316,34 +312,31 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     except:
         pass
 
-    # Número WhatsApp — grande, centrado en la banda (considerando espacio del ícono)
-    f_ws = cargar_fuente(FUENTE_TITULO, 58)  # más grande que antes
+    # Número WhatsApp centrado dentro de la banda
+    f_ws = cargar_fuente(FUENTE_TITULO, 20)
     texto_ws = WHATSAPP_NUMERO
     bbox_ws = draw.textbbox((0, 0), texto_ws, font=f_ws)
-    texto_w  = bbox_ws[2] - bbox_ws[0]
-    texto_h  = bbox_ws[3] - bbox_ws[1]
-
-    # Zona disponible para el texto (después del ícono, antes del extremo derecho de la banda)
-    zona_inicio = icono_x + ICONO_W + 15
-    zona_ancho  = (WS_X2 - WS_H // 2) - zona_inicio  # restamos el radio derecho
-    texto_x = zona_inicio + (zona_ancho - texto_w) // 2
-    texto_y = WS_Y + (WS_H - texto_h) // 2 - 3
+    texto_w = bbox_ws[2] - bbox_ws[0]
+    texto_h = bbox_ws[3] - bbox_ws[1]
+    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 10
+    texto_y = WS_Y + (WS_H - texto_h) // 2 - 1
     draw.text((texto_x, texto_y), texto_ws, font=f_ws, fill=COLOR_BLANCO)
 
-    # 7. "Entregas todo Lima" — justo encima de la banda verde, izquierda
+    # 7. "Entregas todo Lima" — justo encima de la banda verde
     try:
         path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
-        icon_truck = Image.open(path_truck).convert("RGBA").resize((36, 36), Image.LANCZOS)
-        canvas.paste(icon_truck, (25, WS_Y - 48), icon_truck)
-        txt_x = 68
+        icon_truck = Image.open(path_truck).convert("RGBA").resize((22, 22), Image.LANCZOS)
+        canvas.paste(icon_truck, (WS_X1, WS_Y - 30), icon_truck)
+        txt_x = WS_X1 + 28
     except:
-        txt_x = 25
-    draw.text((txt_x, WS_Y - 46), "Entregas todo Lima",
-              font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
+        txt_x = WS_X1
+    draw.text((txt_x, WS_Y - 30), "Entregas todo Lima",
+              font=cargar_fuente(FUENTE_REGULAR, 18), fill=COLOR_AZUL)
 
     ruta = "post_final.jpg"
     canvas.save(ruta, "JPEG", quality=97, subsampling=0)
     return ruta
+
 # ─────────────────────────────────────────────
 # GITHUB
 # ─────────────────────────────────────────────
