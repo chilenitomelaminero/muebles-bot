@@ -52,7 +52,7 @@ def validar_credenciales():
     print("   ✅ Todas las credenciales presentes")
 
 genai.configure(api_key=GEMINI_KEY) if GEMINI_KEY else None
-model_gemini = genai.GenerativeModel('gemini-1.5-flash') if GEMINI_KEY else None
+model_gemini = genai.GenerativeModel('gemini-2.0-flash') if GEMINI_KEY else None
 
 # ====================================================================
 # GOOGLE DRIVE
