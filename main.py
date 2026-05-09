@@ -96,7 +96,7 @@ def aplicar_marca_agua(foto_ia, img_logo):
     print("\n🖼️  Aplicando marca de agua...")
     foto = foto_ia.convert("RGBA")
     logo = img_logo.convert("RGBA")
-    ancho_logo = int(foto.width * 0.18)
+    ancho_logo = int(foto.width * 0.30)
     w_percent = (ancho_logo / float(logo.width))
     alto_logo = int((float(logo.height) * float(w_percent)))
     logo = logo.resize((ancho_logo, alto_logo), Image.LANCZOS)
