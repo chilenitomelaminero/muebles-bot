@@ -1,6 +1,6 @@
 """
 MUEBLES BOT - Chilenito Melaminero
-Genera composición profesional tipo plantilla + publica en FB e IG
+Composición profesional tipo plantilla + publica en FB e IG
 """
 
 import os
@@ -28,13 +28,14 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
-# COLORES Y ESTILO
-COLOR_AZUL = (27, 58, 107)        # #1B3A6B - color principal
-COLOR_VERDE_WS = (37, 211, 102)   # verde WhatsApp
+# COLORES
+COLOR_AZUL = (27, 58, 107)
+COLOR_VERDE_WS = (37, 211, 102)
 COLOR_BLANCO = (255, 255, 255)
+COLOR_GRIS_CLARO = (245, 245, 245)
 WHATSAPP_NUMERO = "+51 903 427 486"
 
-# RUTAS DE FUENTES
+# FUENTES
 FUENTE_TITULO = "fonts/Montserrat-ExtraBold.ttf"
 FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
 FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
@@ -42,34 +43,29 @@ FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 def toca_publicar_hoy():
     if os.environ.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-        print("   🖱️  Ejecución manual → publica siempre")
+        print("   🖱️  Manual → publica siempre")
         return True
-    
     ahora_utc = datetime.now(timezone.utc)
     lima = ahora_utc - timedelta(hours=5)
     semilla = int(lima.strftime("%Y%m%d"))
     random.seed(semilla)
     minuto_objetivo = random.randint(0, 59)
-    
     print(f"   📅 Hora Lima: {lima.strftime('%H:%M')}")
-    print(f"   🎯 Minuto objetivo hoy: 9:{minuto_objetivo:02d}")
-    
+    print(f"   🎯 Minuto objetivo: 9:{minuto_objetivo:02d}")
     if lima.hour == 9:
-        diferencia = abs(lima.minute - minuto_objetivo)
-        if diferencia <= 4:
-            print(f"   ✅ ¡Es la hora!")
+        if abs(lima.minute - minuto_objetivo) <= 4:
+            print("   ✅ ¡Es la hora!")
             return True
     return False
 
 
 def validar_credenciales():
     print("\n🔐 Validando credenciales...")
-    faltan = []
-    if not META_TOKEN: faltan.append("META_TOKEN")
-    if not FB_PAGE_ID: faltan.append("META_PAGE_ID")
-    if not IG_USER_ID: faltan.append("META_INSTAGRAM_ID")
-    if not GROQ_API_KEY: faltan.append("GROQ_API_KEY")
-    if not GH_TOKEN: faltan.append("GH_TOKEN")
+    faltan = [k for k, v in {
+        "META_TOKEN": META_TOKEN, "META_PAGE_ID": FB_PAGE_ID,
+        "META_INSTAGRAM_ID": IG_USER_ID, "GROQ_API_KEY": GROQ_API_KEY,
+        "GH_TOKEN": GH_TOKEN
+    }.items() if not v]
     if faltan:
         print(f"   ❌ FALTAN: {', '.join(faltan)}")
         sys.exit(1)
@@ -84,9 +80,8 @@ def conectar_drive():
         sys.exit(1)
     info = json.loads(creds_json)
     creds = service_account.Credentials.from_service_account_info(
-        info, scopes=['https://www.googleapis.com/auth/drive']
-    )
-    print("   ✅ Conectado")
+        info, scopes=['https://www.googleapis.com/auth/drive'])
+    print("   ✅ OK")
     return build('drive', 'v3', credentials=creds)
 
 
@@ -103,61 +98,56 @@ def descargar_logo(service):
     downloader = MediaIoBaseDownload(fh, request)
     done = False
     while not done:
-        status, done = downloader.next_chunk()
+        _, done = downloader.next_chunk()
     fh.seek(0)
-    print("   ✅ Logo OK")
+    print("   ✅ OK")
     return Image.open(fh)
 
 
 def decidir_mueble_y_titulo():
-    """Genera con Groq: descripción del mueble + título corto para la pieza."""
-    print("\n🧠 Decidiendo mueble del día con Groq...")
+    print("\n🧠 Decidiendo mueble del día...")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-    
     prompt = (
-        "Eres asistente de marketing para 'Chilenito Melaminero', mueblista en SJL Lima Perú "
-        "que hace muebles a medida en melamina. Sugiere UN mueble distinto cada vez. "
-        "Responde SOLO en JSON sin markdown, con esta estructura exacta:\n"
-        '{"titulo": "MUEBLE DE TV", "descripcion": "Mueble de TV moderno en melamina hickory natural con repisas y cajones"}\n\n'
-        "El TITULO debe ser CORTO (máx 3 palabras) en MAYÚSCULAS, ej: LIBRERO, ROPERO, MUEBLE DE TV, COCINA, "
-        "CLOSET, ESCRITORIO, COMODA, REPOSTERO, BAR, RECIBIDOR.\n"
-        "La DESCRIPCION debe ser visual para una IA generadora de imágenes (color de melamina, estilo, características)."
+        "Eres asistente de marketing para 'Chilenito Melaminero', mueblista en SJL Lima Perú. "
+        "Sugiere UN mueble específico de melamina. "
+        "Responde SOLO en JSON con esta estructura exacta (sin markdown):\n"
+        '{"titulo": "ROPERO", "descripcion_imagen": "A single white melamine wardrobe with 6 doors and mirror, modern minimalist style, isolated on white background, product photography", "descripcion_mueble": "Ropero de 6 puertas en melamina blanca con espejo central"}\n\n'
+        "TITULO: máximo 3 palabras en MAYÚSCULAS. Opciones: ROPERO, LIBRERO, MUEBLE DE TV, CLOSET, COCINA, ESCRITORIO, COMODA, REPOSTERO, CAMA, RECIBIDOR.\n"
+        "descripcion_imagen: prompt en INGLÉS específico para generar SOLO ESE MUEBLE aislado, como foto de producto, fondo blanco o neutro, SIN personas, SIN habitación completa.\n"
+        "descripcion_mueble: descripción en español del mueble para el caption."
     )
-    
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.9,
-        "max_tokens": 300,
+        "max_tokens": 400,
         "response_format": {"type": "json_object"}
     }
-    
     response = requests.post(url, headers=headers, json=payload, timeout=30)
     if response.status_code == 200:
-        contenido = response.json()['choices'][0]['message']['content']
-        data = json.loads(contenido)
+        data = json.loads(response.json()['choices'][0]['message']['content'])
         titulo = data.get("titulo", "MUEBLE A MEDIDA").upper()
-        descripcion = data.get("descripcion", "Mueble moderno en melamina")
+        desc_imagen = data.get("descripcion_imagen", "Modern melamine furniture, product photography, white background")
+        desc_mueble = data.get("descripcion_mueble", titulo)
         print(f"   ✅ Título: {titulo}")
-        print(f"   ✅ Descripción: {descripcion}")
-        return titulo, descripcion
-    
+        print(f"   ✅ Prompt imagen: {desc_imagen[:80]}...")
+        return titulo, desc_imagen, desc_mueble
     print(f"   ❌ Error: {response.status_code}")
-    return "MUEBLE A MEDIDA", "Mueble moderno de melamina con acabados premium"
+    return "MUEBLE A MEDIDA", "Modern melamine furniture product photography white background", "Mueble a medida en melamina"
 
 
-def generar_imagen_ia(descripcion):
-    print(f"\n🎨 Generando imagen IA...")
+def generar_imagen_ia(descripcion_imagen):
+    print(f"\n🎨 Generando imagen IA del mueble...")
+    # Prompt muy específico para que genere SOLO el mueble
     prompt = (
-        f"Beautiful interior design photo of a modern home with {descripcion}. "
-        f"Real lifestyle photography, natural lighting, neutral wall colors, "
-        f"styled with decorative items like books, plants, lamps. "
-        f"Professional home decor magazine style, 8k, photorealistic, no people"
+        f"{descripcion_imagen}. "
+        f"Product photography style, single furniture piece only, "
+        f"plain white or very light gray background, no room context, "
+        f"no people, professional lighting, centered, 8k"
     )
     prompt_encoded = urllib.parse.quote(prompt)
-    # Cuadrado 1080x1080 (formato Instagram)
-    url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1080&height=1080&model=flux&nologo=true"
+    url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1080&height=800&model=flux&nologo=true"
     print("   ⏳ Pollinations AI (20-40 seg)...")
     try:
         response = requests.get(url, timeout=120)
@@ -172,86 +162,98 @@ def generar_imagen_ia(descripcion):
 
 
 def cargar_fuente(ruta, tamano):
-    """Carga una fuente del repo o usa la default si falla."""
     try:
         return ImageFont.truetype(ruta, tamano)
     except Exception as e:
-        print(f"   ⚠️  No se pudo cargar {ruta}: {e}")
+        print(f"   ⚠️  Fuente fallback: {e}")
         return ImageFont.load_default()
 
 
+def texto_centrado(draw, texto, fuente, y, ancho_canvas, color):
+    """Dibuja texto perfectamente centrado en X."""
+    bbox = draw.textbbox((0, 0), texto, font=fuente)
+    text_w = bbox[2] - bbox[0]
+    x = (ancho_canvas - text_w) / 2
+    draw.text((x, y), texto, font=fuente, fill=color)
+    return bbox[3] - bbox[1]  # retorna altura del texto
+
+
+def banda_redondeada(draw, x1, y1, x2, y2, radio, color):
+    """Dibuja un rectángulo con bordes redondeados solo arriba."""
+    # Rectángulo principal
+    draw.rectangle([(x1, y1 + radio), (x2, y2)], fill=color)
+    # Rectángulo horizontal para el medio
+    draw.rectangle([(x1 + radio, y1), (x2 - radio, y2)], fill=color)
+    # Círculos para las esquinas superiores
+    draw.ellipse([(x1, y1), (x1 + radio * 2, y1 + radio * 2)], fill=color)
+    draw.ellipse([(x2 - radio * 2, y1), (x2, y1 + radio * 2)], fill=color)
+
+
 def componer_pieza_grafica(foto_mueble, logo, titulo):
-    """
-    Compone la pieza profesional tipo plantilla:
-    - Foto centrada con margen
-    - Título grande arriba
-    - Cursiva "a medida" debajo
-    - Banda verde con WhatsApp abajo
-    - Logo esquina inferior derecha
-    """
-    print("\n🖼️  Componiendo pieza gráfica profesional...")
+    print("\n🖼️  Componiendo pieza gráfica...")
     
-    # Canvas final 1080x1080 (formato Instagram)
     W, H = 1080, 1080
+    
+    # Canvas base: fondo blanco limpio
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
     draw = ImageDraw.Draw(canvas)
     
-    # 1. Pegar foto del mueble (ocupando ~70% del centro)
-    foto_resized = foto_mueble.resize((W, int(H * 0.75)), Image.LANCZOS)
-    canvas.paste(foto_resized, (0, int(H * 0.13)))
+    # --- ZONA DE FOTO (entre header y footer) ---
+    # Header: 220px arriba
+    # Footer: 130px abajo (banda verde)
+    # Foto: entre 220 y 950
     
-    # 2. Banda blanca semi-transparente arriba para el título
-    overlay = Image.new("RGBA", (W, int(H * 0.18)), (255, 255, 255, 230))
-    canvas.paste(overlay, (0, 0), overlay)
+    HEADER_H = 220       # altura del área de título
+    FOOTER_Y = 950       # donde empieza la banda verde
+    FOOTER_H = H - FOOTER_Y  # altura de la banda verde
     
-    # 3. Título principal (ej: "LIBRERO")
-    fuente_titulo = cargar_fuente(FUENTE_TITULO, 110)
-    bbox = draw.textbbox((0, 0), titulo, font=fuente_titulo)
-    text_w = bbox[2] - bbox[0]
-    draw.text(((W - text_w) / 2, 30), titulo, font=fuente_titulo, fill=COLOR_AZUL)
+    # 1. Foto del mueble centrada en la zona media
+    foto_zona_h = FOOTER_Y - HEADER_H  # 730px disponibles
+    foto_resized = foto_mueble.resize((W, foto_zona_h), Image.LANCZOS)
+    canvas.paste(foto_resized, (0, HEADER_H))
     
-    # 4. Cursiva "a medida"
-    fuente_cursiva = cargar_fuente(FUENTE_CURSIVA, 75)
-    cursiva = "a medida"
-    bbox = draw.textbbox((0, 0), cursiva, font=fuente_cursiva)
-    text_w = bbox[2] - bbox[0]
-    draw.text(((W - text_w) / 2, 145), cursiva, font=fuente_cursiva, fill=COLOR_AZUL)
+    # 2. Degradado suave en la parte superior de la foto para que el título sea legible
+    for i in range(60):
+        alpha = int(255 * (1 - i / 60))
+        draw.rectangle([(0, HEADER_H + i), (W, HEADER_H + i + 1)],
+                       fill=(255, 255, 255, alpha) if False else (255, 255, 255))
     
-    # 5. Banda verde con WhatsApp abajo
-    banda_y = int(H * 0.91)
-    banda_h = int(H * 0.09)
-    draw.rectangle([(0, banda_y), (W, H)], fill=COLOR_VERDE_WS)
+    # 3. TÍTULO grande centrado en el header
+    fuente_titulo = cargar_fuente(FUENTE_TITULO, 120)
+    texto_centrado(draw, titulo, fuente_titulo, 25, W, COLOR_AZUL)
     
-    # Texto WhatsApp en la banda verde
-    fuente_ws = cargar_fuente(FUENTE_TITULO, 50)
-    texto_ws = f"📱 WhatsApp: {WHATSAPP_NUMERO}"
-    # PIL no renderiza emoji bien — usamos texto simple
-    texto_ws = f"WhatsApp: {WHATSAPP_NUMERO}"
-    bbox = draw.textbbox((0, 0), texto_ws, font=fuente_ws)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-    draw.text(((W - text_w) / 2, banda_y + (banda_h - text_h) / 2 - 10),
-              texto_ws, font=fuente_ws, fill=COLOR_BLANCO)
+    # 4. Cursiva "a medida" centrada justo debajo del título
+    fuente_cursiva = cargar_fuente(FUENTE_CURSIVA, 80)
+    texto_centrado(draw, "a medida", fuente_cursiva, 155, W, COLOR_AZUL)
     
-    # 6. Logo esquina inferior derecha (sobre la foto, antes de la banda)
-    logo_w = int(W * 0.18)
+    # 5. "Entregas todo Lima" abajo izquierda, justo encima de la banda verde
+    fuente_regular = cargar_fuente(FUENTE_REGULAR, 34)
+    draw.text((35, FOOTER_Y - 52), "Entregas todo Lima", font=fuente_regular, fill=COLOR_AZUL)
+    
+    # 6. Logo Chilenito abajo derecha, justo encima de la banda verde
+    logo_w = int(W * 0.20)
     logo_ratio = logo_w / logo.width
     logo_h = int(logo.height * logo_ratio)
     logo_resized = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
     pos_x = W - logo_w - 30
-    pos_y = banda_y - logo_h - 20
+    pos_y = FOOTER_Y - logo_h - 15
     canvas.paste(logo_resized, (pos_x, pos_y), logo_resized)
     
-    # 7. "Entregas todo Lima" abajo izquierda (encima de la banda verde)
-    fuente_entrega = cargar_fuente(FUENTE_REGULAR, 32)
-    texto_entrega = "🚚 Entregas todo Lima"
-    texto_entrega = "Entregas todo Lima"  # Sin emoji
-    draw.text((30, banda_y - 50), texto_entrega, font=fuente_entrega, fill=COLOR_AZUL)
+    # 7. BANDA VERDE con bordes redondeados arriba
+    draw_rgba = ImageDraw.Draw(canvas)
+    radio = 30
+    banda_redondeada(draw_rgba, 0, FOOTER_Y, W, H, radio, COLOR_VERDE_WS)
+    
+    # 8. Texto WhatsApp centrado en la banda verde
+    fuente_ws = cargar_fuente(FUENTE_TITULO, 55)
+    texto_ws = f"WhatsApp: {WHATSAPP_NUMERO}"
+    center_y = FOOTER_Y + (FOOTER_H - 55) // 2 - 5
+    texto_centrado(draw_rgba, texto_ws, fuente_ws, center_y, W, COLOR_BLANCO)
     
     # Guardar
     ruta = "post_final.jpg"
     canvas.save(ruta, "JPEG", quality=95)
-    print(f"   ✅ Pieza guardada: {ruta}")
+    print("   ✅ Pieza guardada")
     return ruta
 
 
@@ -263,33 +265,32 @@ def subir_imagen_a_github(ruta_local):
         contenido_b64 = base64.b64encode(f.read()).decode('utf-8')
     url = f"https://api.github.com/repos/{GH_REPO}/contents/{nombre_remoto}"
     headers = {"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"}
-    payload = {"message": f"Auto: imagen {timestamp}", "content": contenido_b64, "branch": "main"}
+    payload = {"message": f"Auto: {timestamp}", "content": contenido_b64, "branch": "main"}
     response = requests.put(url, headers=headers, json=payload, timeout=30)
     if response.status_code in (200, 201):
-        url_publica = f"https://raw.githubusercontent.com/{GH_REPO}/main/{nombre_remoto}"
-        print(f"   ✅ {url_publica}")
-        return url_publica
+        url_pub = f"https://raw.githubusercontent.com/{GH_REPO}/main/{nombre_remoto}"
+        print(f"   ✅ {url_pub}")
+        return url_pub
     print(f"   ❌ {response.status_code}")
     return None
 
 
-def generar_caption_groq(titulo, descripcion):
+def generar_caption_groq(titulo, desc_mueble):
     print("\n✍️  Generando caption...")
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     prompt = (
-        f"Escribe un post CORTO de Instagram/Facebook para 'Chilenito Melaminero' (mueblista en SJL Lima). "
-        f"Producto: {titulo} - {descripcion}. "
-        f"Tono cercano. Máximo 50 palabras. "
-        f"Estructura: 1 línea atractiva + 2 beneficios cortos + CTA. "
-        f"Incluye al final: 📲 WhatsApp: {WHATSAPP_NUMERO}. "
-        f"Después agrega 6 hashtags relevantes."
+        f"Post CORTO para Instagram/Facebook de 'Chilenito Melaminero' (mueblista SJL Lima). "
+        f"Producto: {titulo} - {desc_mueble}. "
+        f"Máximo 50 palabras. 1 línea atractiva + 2 beneficios + CTA. "
+        f"Al final: 📲 WhatsApp: {WHATSAPP_NUMERO}. "
+        f"Después 6 hashtags. Solo el texto del post, sin explicaciones."
     )
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.8,
-        "max_tokens": 500
+        "max_tokens": 400
     }
     response = requests.post(url, headers=headers, json=payload, timeout=30)
     if response.status_code == 200:
@@ -301,7 +302,7 @@ def generar_caption_groq(titulo, descripcion):
 
 
 def publicar_en_facebook(ruta_foto, texto):
-    print("\n📘 Publicando en Facebook...")
+    print("\n📘 Facebook...")
     url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
     payload = {'message': texto, 'access_token': META_TOKEN, 'published': 'true'}
     with open(ruta_foto, 'rb') as f:
@@ -315,18 +316,23 @@ def publicar_en_facebook(ruta_foto, texto):
 
 
 def publicar_en_instagram(url_imagen, texto):
-    print("\n📸 Publicando en Instagram...")
-    url_base = f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media"
-    payload = {'image_url': url_imagen, 'caption': texto, 'access_token': META_TOKEN}
-    res = requests.post(url_base, data=payload, timeout=30).json()
+    print("\n📸 Instagram...")
+    res = requests.post(
+        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
+        data={'image_url': url_imagen, 'caption': texto, 'access_token': META_TOKEN},
+        timeout=30
+    ).json()
     creation_id = res.get('id')
     if not creation_id:
         print(f"   ❌ {json.dumps(res, indent=2)}")
         return False
     print(f"   ✅ Contenedor: {creation_id}")
     time.sleep(7)
-    url_pub = f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish"
-    res_pub = requests.post(url_pub, data={'creation_id': creation_id, 'access_token': META_TOKEN}, timeout=30).json()
+    res_pub = requests.post(
+        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
+        data={'creation_id': creation_id, 'access_token': META_TOKEN},
+        timeout=30
+    ).json()
     if 'id' in res_pub:
         print(f"   ✅ ID: {res_pub['id']}")
         return True
@@ -352,24 +358,29 @@ def main():
         if not logo:
             sys.exit(1)
         
-        # Groq decide qué mueble + título
-        titulo, descripcion = decidir_mueble_y_titulo()
+        # Groq decide mueble del día
+        titulo, desc_imagen, desc_mueble = decidir_mueble_y_titulo()
         
-        # IA genera la foto
-        foto = generar_imagen_ia(descripcion)
+        # IA genera foto del mueble específico
+        foto = generar_imagen_ia(desc_imagen)
         if not foto:
             sys.exit(1)
         
-        # Componer pieza gráfica profesional
+        # Componer pieza profesional
         ruta = componer_pieza_grafica(foto, logo, titulo)
         
-        # Subir a GitHub para URL pública
+        # Subir a GitHub
         url_publica = subir_imagen_a_github(ruta)
         
-        # Caption con Groq
-        caption = generar_caption_groq(titulo, descripcion)
+        # Caption
+        caption = generar_caption_groq(titulo, desc_mueble)
         if not caption:
-            caption = f"🪑 {titulo} a medida\n\nMuebles de melamina con calidad y diseño.\n\n📲 WhatsApp: {WHATSAPP_NUMERO}\n\n#Muebles #Melamina #Lima #SJL #ChilenitoMelaminero #MueblesPeru"
+            caption = (
+                f"🪑 {titulo} a medida en melamina\n\n"
+                f"✅ Diseño personalizado\n✅ Entregamos en Lima\n\n"
+                f"📲 WhatsApp: {WHATSAPP_NUMERO}\n\n"
+                f"#Muebles #Melamina #Lima #SJL #ChilenitoMelaminero #MueblesPeru"
+            )
         
         fb_ok = publicar_en_facebook(ruta, caption)
         ig_ok = False
@@ -383,6 +394,7 @@ def main():
         
         if not fb_ok and not ig_ok:
             sys.exit(1)
+            
     except Exception as e:
         print(f"\n💥 Error: {e}")
         import traceback
