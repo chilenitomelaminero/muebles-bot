@@ -31,10 +31,10 @@ GH_REPO          = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/mueb
 RUTA_ICONOS    = "icono"
 FUENTE_TITULO  = "fonts/Montserrat-ExtraBold.ttf"
 FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
-FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
+FUENTE_REGULAR = "fonts/GlacialIndifference-Regular.otf"  # ← ACTUALIZADA
 
 # COLORES CONSTANTES
-COLOR_AZUL      = (0, 56, 159)      # ← CAMBIADO a #00389F
+COLOR_AZUL      = (0, 56, 159)      # ← #00389F
 COLOR_VERDE_WS  = (94, 177, 7)
 COLOR_BLANCO    = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
@@ -238,14 +238,11 @@ def generar_imagen_ia(desc, max_intentos=3):
 # ─────────────────────────────────────────────
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
-def dibujar_pilldora(draw, x1, y1, x2, y2, color):
-    """Dibuja una banda tipo píldora completamente ovalada en los extremos."""
+def dibujar_pildora(draw, x1, y1, x2, y2, color):
+    """Dibuja una banda tipo píldora completamente ovalada en ambos extremos."""
     radio = (y2 - y1) // 2
-    # Rectángulo central
     draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
-    # Semicírculo izquierdo
     draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
-    # Semicírculo derecho
     draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
 
 
@@ -268,7 +265,7 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     bbox_t = draw.textbbox((0, 0), datos['titulo'], font=f_tit)
     draw.text(((W - (bbox_t[2] - bbox_t[0])) / 2, 60), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
 
-    # 3. Cursiva "a medida"
+    # 3. Cursiva "a medida" centrada
     f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
     bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
     draw.text(((W - (bbox_c[2] - bbox_c[0])) / 2, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
@@ -280,29 +277,25 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
     draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
 
-    # 5. "Entregas todo Lima"
+    # 5. "Entregas todo Lima" — posición basada en Canva (pequeño, abajo izquierda)
     try:
         path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
-        icon_truck = Image.open(path_truck).convert("RGBA").resize((48, 48), Image.LANCZOS)
-        canvas.paste(icon_truck, (75, 870), icon_truck)
-        txt_x = 135
+        icon_truck = Image.open(path_truck).convert("RGBA").resize((32, 32), Image.LANCZOS)
+        canvas.paste(icon_truck, (62, 900), icon_truck)
+        txt_x = 100
     except:
-        txt_x = 75
-    draw.text((txt_x, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
+        txt_x = 62
+    draw.text((txt_x, 902), "Entregas todo Lima",
+              font=cargar_fuente(FUENTE_REGULAR, 22), fill=COLOR_AZUL)
 
-    # ─────────────────────────────────────────
-    # 6. BANDA WHATSAPP — píldora centrada
-    # Medidas basadas en Canva escaladas a 1080x1080:
-    # Canva: W=326.5px, H=56.7px, Y=652.5px (canvas ~500x500 → escala x2.16)
-    # ─────────────────────────────────────────
-    WS_W    = 700          # ancho de la píldora en el canvas 1080
-    WS_H    = 110          # alto de la píldora
-    WS_Y    = 935          # posición Y (parte inferior, sobre el logo)
-    WS_X1   = (W - WS_W) // 2   # centrado horizontal
-    WS_X2   = WS_X1 + WS_W
+    # 6. BANDA WHATSAPP — píldora centrada horizontalmente
+    WS_W  = 700
+    WS_H  = 110
+    WS_Y  = 935
+    WS_X1 = (W - WS_W) // 2
+    WS_X2 = WS_X1 + WS_W
 
-    # Dibuja la píldora centrada
-    dibujar_pilldora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
+    dibujar_pildora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
 
     # Ícono WhatsApp dentro de la píldora
     ICONO_W = 60
@@ -310,19 +303,17 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     try:
         path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
         icon_ws = Image.open(path_ws).convert("RGBA").resize((ICONO_W, ICONO_W), Image.LANCZOS)
-        # Posición del ícono: centrado verticalmente, a la izquierda del texto
         canvas.paste(icon_ws, (WS_X1 + 30, icono_y), icon_ws)
     except:
         pass
 
-    # Texto WhatsApp perfectamente centrado dentro de la píldora
+    # Texto WhatsApp centrado dentro de la píldora
     f_ws = cargar_fuente(FUENTE_TITULO, 44)
     texto_ws = WHATSAPP_NUMERO
     bbox_ws = draw.textbbox((0, 0), texto_ws, font=f_ws)
     texto_w = bbox_ws[2] - bbox_ws[0]
     texto_h = bbox_ws[3] - bbox_ws[1]
-    # Centro horizontal considerando el ícono (desplazamos texto ligeramente a la derecha)
-    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 20   # +20 para balancear con ícono izquierdo
+    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 20
     texto_y = WS_Y + (WS_H - texto_h) // 2 - 3
     draw.text((texto_x, texto_y), texto_ws, font=f_ws, fill=COLOR_BLANCO)
 
@@ -377,7 +368,7 @@ def generar_caption(titulo, melamina, mueble_es=""):
         f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
         f"[CARACTERÍSTICAS] Lista estas 6 características con emoji ✅ al inicio, una por línea:\n"
         f"✅ Diseño personalizado según tu espacio\n"
-        f"✅ [característica interna específica del {titulo}, ej: distribución en colgadores, cajones, repisas]\n"
+        f"✅ [característica interna específica del {titulo}]\n"
         f"✅ Colores disponibles a elección (melamina {melamina} y más)\n"
         f"✅ Material resistente y duradero\n"
         f"✅ Precios accesibles\n"
@@ -415,3 +406,84 @@ def publicar_fb(ruta, texto):
     ok = 'id' in r.json()
     if not ok:
         print(f"⚠️  Facebook error: {r.text[:300]}")
+    return ok
+
+def publicar_ig(url_imagen, texto):
+    r1 = requests.post(
+        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
+        data={
+            'image_url': url_imagen,
+            'caption': texto,
+            'access_token': META_TOKEN
+        }
+    ).json()
+
+    c_id = r1.get('id')
+    if not c_id:
+        print(f"⚠️  Instagram container error: {r1}")
+        return False
+
+    time.sleep(15)
+    r2 = requests.post(
+        f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
+        data={'creation_id': c_id, 'access_token': META_TOKEN}
+    ).json()
+
+    ok = 'id' in r2
+    if not ok:
+        print(f"⚠️  Instagram publish error: {r2}")
+    return ok
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+def main():
+    if not os.environ.get("GROQ_API_KEY"):
+        print("❌ GROQ_API_KEY no configurada")
+        return
+
+    try:
+        print("🔌 Conectando a Google Drive...")
+        service = conectar_drive()
+        logo = descargar_logo(service)
+        if not logo:
+            print("❌ No se encontró logo_principal.webp en Drive")
+            return
+
+        print("🤖 Decidiendo mueble con IA...")
+        datos = decidir_mueble_y_titulo()
+
+        print("🖼️  Generando imagen en alta resolución...")
+        foto = generar_imagen_ia(datos['desc_img'])
+
+        if not foto:
+            print("❌ No se pudo generar imagen. Abortando.")
+            return
+
+        print("🎨 Componiendo pieza gráfica...")
+        ruta = componer_pieza_grafica(foto, logo, datos)
+
+        print("📤 Subiendo a GitHub...")
+        url_p = subir_a_github(ruta)
+
+        print("✍️  Generando caption...")
+        caption = generar_caption(
+            datos['titulo'],
+            datos['melamina'],
+            datos.get('mueble_es', datos['titulo'])
+        )
+
+        print("📘 Publicando en Facebook...")
+        f_ok = publicar_fb(ruta, caption)
+
+        print("📸 Publicando en Instagram...")
+        i_ok = publicar_ig(url_p, caption) if url_p else False
+
+        print(f"\n🏁 Finalizado → Facebook: {'✅' if f_ok else '❌'} | Instagram: {'✅' if i_ok else '❌'}")
+
+    except Exception as e:
+        print(f"💥 Error crítico: {e}")
+        raise
+
+if __name__ == "__main__":
+    main()
