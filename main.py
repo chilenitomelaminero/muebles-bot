@@ -30,7 +30,7 @@ GH_REPO          = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/mueb
 # RUTAS Y RECURSOS
 RUTA_ICONOS   = "icono"
 FUENTE_TITULO = "fonts/Montserrat-ExtraBold.ttf"
-FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
+FUENTE_CURSIVA = "fonts/Pacifico-Regular.ttf"
 FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 # COLORES CONSTANTES
