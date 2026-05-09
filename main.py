@@ -1,6 +1,6 @@
 """
 MUEBLES BOT - Chilenito Melaminero
-Versión: Catálogo Premium (Sin texto "pide tu cotización" + Imágenes sin fondo)
+Versión Final: Carpeta 'icono' + Banda Lateral Recta + Melaminas Dinámicas
 """
 
 import os
@@ -27,16 +27,17 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN = os.environ.get("GH_TOKEN")
 GH_REPO = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
-# COLORES
+# RUTAS Y RECURSOS
+RUTA_ICONOS = "icono"
+FUENTE_TITULO = "fonts/Montserrat-ExtraBold.ttf"
+FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
+FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
+
+# COLORES Y DATOS CONSTANTES
 COLOR_AZUL = (27, 58, 107)
 COLOR_VERDE_WS = (37, 211, 102)
 COLOR_BLANCO = (255, 255, 255)
 WHATSAPP_NUMERO = "+51 903 427 486"
-
-# FUENTES
-FUENTE_TITULO = "fonts/Montserrat-ExtraBold.ttf"
-FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
-FUENTE_REGULAR = "fonts/Montserrat-Regular.ttf"
 
 def cargar_fuente(ruta, tamano):
     try:
@@ -82,10 +83,17 @@ def decidir_mueble_y_titulo():
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     prompt = (
         "Eres el Director de Arte de 'Chilenito Melaminero'. Genera un JSON con:\n"
-        '{"titulo": "CLOSET MODERNO", "melamina": "Hickory Natural", "color_hex": "#D2B48C", "desc_img": "PROMPT_INGLES", "desc_mueble": "DESC_ESPANOL"}\n'
-        "REGLA IMAGEN: Mueble único, fondo blanco puro, SIN PISO, SIN SOMBRAS, estilo catálogo PNG, 8k."
+        '{"titulo": "NOMBRE_MUEBLE", "melamina": "NOMBRE_MELAMINA", "color_hex": "#HEX", "desc_img": "PROMPT_INGLES", "desc_mueble": "DESC_ESPANOL"}\n'
+        "REGLAS:\n"
+        "1. Variedad: Elige melaminas diferentes cada vez (Hickory, Antracita, Roble, Nogal, etc.).\n"
+        "2. Imagen: Mueble único, fondo blanco puro, SIN PISO, SIN SOMBRAS, 8k."
     )
-    payload = {"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "response_format": {"type": "json_object"}}
+    payload = {
+        "model": "llama-3.3-70b-versatile", 
+        "messages": [{"role": "user", "content": prompt}], 
+        "temperature": 0.9,
+        "response_format": {"type": "json_object"}
+    }
     r = requests.post(url, headers=headers, json=payload).json()
     return json.loads(r['choices'][0]['message']['content'])
 
@@ -95,51 +103,59 @@ def generar_imagen_ia(desc):
     res = requests.get(url, timeout=120)
     return Image.open(io.BytesIO(res.content)) if res.status_code == 200 else None
 
-def dibujar_icono_ws(draw, x, y, size):
-    draw.ellipse([x, y, x + size, y + size], fill=COLOR_VERDE_WS)
-    draw.polygon([(x + size*0.25, y + size*0.7), (x + size*0.1, y + size*0.9), (x + size*0.4, y + size*0.8)], fill=COLOR_BLANCO)
-    draw.ellipse([x + size*0.15, y + size*0.15, x + size*0.85, y + size*0.85], outline=COLOR_BLANCO, width=5)
-
 def componer_pieza_grafica(foto_mueble, logo, datos):
     W, H = 1080, 1080
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
     draw = ImageDraw.Draw(canvas)
     
     # 1. Foto Mueble
-    foto_w = 900
+    foto_w = 950
     ratio = foto_w / foto_mueble.width
     foto_h = int(foto_mueble.height * ratio)
-    if foto_h > 600:
-        foto_h = 600
-        foto_w = int(foto_mueble.width * (foto_h / foto_mueble.height))
+    if foto_h > 600: foto_h = 600
     foto_res = foto_mueble.resize((foto_w, foto_h), Image.LANCZOS)
-    canvas.paste(foto_res, ((W - foto_w) // 2, 320))
+    canvas.paste(foto_res, ((W - foto_w) // 2, 300))
     
-    # 2. Títulos
-    f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 95, W-150)
+    # 2. Títulos superiores
+    f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 90, W-150)
     bbox_t = draw.textbbox((0,0), datos['titulo'], font=f_tit)
-    draw.text(((W-(bbox_t[2]-bbox_t[0]))/2, 70), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
+    draw.text(((W-(bbox_t[2]-bbox_t[0]))/2, 60), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
     
-    f_cur = cargar_fuente(FUENTE_CURSIVA, 90)
-    draw.text((W/2 - 20, 165), "a medida", font=f_cur, fill=COLOR_AZUL)
+    f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
+    draw.text((W/2 - 30, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 3. Muestra Melamina
-    draw.rounded_rectangle([70, 260, 150, 340], radius=12, fill=datos.get('color_hex', '#8B4513'))
-    draw.text((170, 265), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 24), fill=COLOR_AZUL)
-    draw.text((170, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 38), fill=COLOR_AZUL)
+    # 3. Muestra Melamina Dinámica
+    draw.rounded_rectangle([70, 245, 170, 345], radius=15, fill=datos.get('color_hex', '#8B4513'))
+    draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
+    draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
 
-    # 4. Cápsula WhatsApp (SOLO NÚMERO)
-    ws_x, ws_y, ws_w, ws_h = 60, 930, 420, 90
-    draw.rounded_rectangle([ws_x, ws_y, ws_x+ws_w, ws_y+ws_h], radius=45, fill=COLOR_VERDE_WS)
-    dibujar_icono_ws(draw, ws_x + 20, ws_y + 15, 60)
-    f_ws = cargar_fuente(FUENTE_TITULO, 45) # Un poco más grande al no haber texto extra
-    draw.text((ws_x + 105, ws_y + 15), WHATSAPP_NUMERO, font=f_ws, fill=COLOR_BLANCO)
+    # 4. BANDA WHATSAPP (Recta a la izquierda, Curva a la derecha)
+    ws_h, ws_y, ws_w = 105, 925, 490
+    # Rectángulo desde el borde 0
+    draw.rectangle([0, ws_y, ws_w - 55, ws_y + ws_h], fill=COLOR_VERDE_WS)
+    # Punta redondeada derecha
+    draw.ellipse([ws_w - 110, ws_y, ws_w, ws_y + ws_h], fill=COLOR_VERDE_WS)
+    
+    # Cargar Icono WhatsApp desde carpeta 'icono'
+    try:
+        path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
+        icon_ws = Image.open(path_ws).convert("RGBA").resize((60, 60), Image.LANCZOS)
+        canvas.paste(icon_ws, (30, ws_y + 22), icon_ws)
+    except: pass
+    
+    f_ws = cargar_fuente(FUENTE_TITULO, 46)
+    draw.text((105, ws_y + 22), WHATSAPP_NUMERO, font=f_ws, fill=COLOR_BLANCO)
 
-    # 5. Delivery
-    draw.text((70, 880), "🚚 Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 32), fill=COLOR_AZUL)
+    # 5. DELIVERY con Icono PNG
+    try:
+        path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
+        icon_truck = Image.open(path_truck).convert("RGBA").resize((48, 48), Image.LANCZOS)
+        canvas.paste(icon_truck, (75, 870), icon_truck)
+    except: pass
+    draw.text((135, 872), "Entregas todo Lima", font=cargar_fuente(FUENTE_REGULAR, 33), fill=COLOR_AZUL)
 
     # 6. Logo
-    logo_w = 210
+    logo_w = 230
     logo_h = int(logo.height * (logo_w / logo.width))
     logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
     canvas.paste(logo_res, (W - logo_w - 60, H - logo_h - 60), logo_res)
