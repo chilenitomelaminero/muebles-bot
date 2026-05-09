@@ -239,10 +239,11 @@ def generar_imagen_ia(desc, max_intentos=3):
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def dibujar_pildora(draw, x1, y1, x2, y2, color):
-    """Dibuja una banda tipo píldora completamente ovalada en ambos extremos."""
+    """Píldora ovalada solo en el extremo derecho (izquierdo pegado al borde)."""
     radio = (y2 - y1) // 2
-    draw.rectangle([x1 + radio, y1, x2 - radio, y2], fill=color)
-    draw.ellipse([x1, y1, x1 + radio * 2, y2], fill=color)
+    # Rectángulo principal
+    draw.rectangle([x1, y1, x2 - radio, y2], fill=color)
+    # Semicírculo solo en el extremo derecho
     draw.ellipse([x2 - radio * 2, y1, x2, y2], fill=color)
 
 
@@ -251,84 +252,98 @@ def componer_pieza_grafica(foto_mueble, logo, datos):
     canvas = Image.new("RGB", (W, H), COLOR_BLANCO)
     draw = ImageDraw.Draw(canvas)
 
-    # 1. Foto Mueble
+    # 1. Foto Mueble — centrada verticalmente en zona media
     foto_w = 950
     ratio = foto_w / foto_mueble.width
     foto_h = int(foto_mueble.height * ratio)
-    if foto_h > 600:
-        foto_h = 600
+    if foto_h > 620:
+        foto_h = 620
     foto_res = foto_mueble.resize((foto_w, foto_h), Image.LANCZOS)
-    canvas.paste(foto_res, ((W - foto_w) // 2, 300))
+    canvas.paste(foto_res, ((W - foto_w) // 2, 290))
 
-    # 2. Título superior
-    f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 90, W - 150)
+    # 2. Título superior centrado
+    f_tit = ajustar_tamano_fuente(datos['titulo'], FUENTE_TITULO, 100, W - 100)
     bbox_t = draw.textbbox((0, 0), datos['titulo'], font=f_tit)
-    draw.text(((W - (bbox_t[2] - bbox_t[0])) / 2, 60), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
+    draw.text(((W - (bbox_t[2] - bbox_t[0])) / 2, 30), datos['titulo'], font=f_tit, fill=COLOR_AZUL)
 
-    # 3. Cursiva "a medida" centrada
-    f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
+    # 3. Cursiva "a medida" — pegada debajo del título, ligeramente a la derecha
+    f_cur = cargar_fuente(FUENTE_CURSIVA, 80)
     bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
-    draw.text(((W - (bbox_c[2] - bbox_c[0])) / 2, 155), "a medida", font=f_cur, fill=COLOR_AZUL)
+    cur_w = bbox_c[2] - bbox_c[0]
+    # Posición: centrada respecto al título pero ligeramente desplazada a la derecha
+    tit_w = bbox_t[2] - bbox_t[0]
+    tit_x = (W - tit_w) / 2
+    draw.text((tit_x + tit_w - cur_w + 20, 128), "a medida", font=f_cur, fill=COLOR_AZUL)
 
-    # 4. Muestra de color de melamina
+    # 4. Muestra de color de melamina — arriba izquierda debajo del título
     color_mel = hex_a_rgb(datos.get('color_hex', '#8B4513'))
-    draw.rounded_rectangle([70, 245, 170, 345], radius=15, fill=color_mel)
-    draw.rounded_rectangle([70, 245, 170, 345], radius=15, outline=COLOR_AZUL, width=2)
-    draw.text((190, 255), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
-    draw.text((190, 290), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 40), fill=COLOR_AZUL)
+    draw.rounded_rectangle([60, 230, 160, 330], radius=15, fill=color_mel)
+    draw.rounded_rectangle([60, 230, 160, 330], radius=15, outline=COLOR_AZUL, width=2)
+    draw.text((175, 238), "MELAMINA:", font=cargar_fuente(FUENTE_REGULAR, 24), fill=COLOR_AZUL)
+    draw.text((175, 268), datos['melamina'], font=cargar_fuente(FUENTE_TITULO, 42), fill=COLOR_AZUL)
 
-    # 5. "Entregas todo Lima" — posición basada en Canva (pequeño, abajo izquierda)
-    try:
-        path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
-        icon_truck = Image.open(path_truck).convert("RGBA").resize((32, 32), Image.LANCZOS)
-        canvas.paste(icon_truck, (62, 900), icon_truck)
-        txt_x = 100
-    except:
-        txt_x = 62
-    draw.text((txt_x, 902), "Entregas todo Lima",
-              font=cargar_fuente(FUENTE_REGULAR, 22), fill=COLOR_AZUL)
+    # 5. Logo Chilenito — esquina inferior derecha, ENCIMA de la banda verde
+    logo_w = 260
+    logo_h = int(logo.height * (logo_w / logo.width))
+    logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
+    logo_x = W - logo_w - 20
+    logo_y = H - logo_h - 20
+    canvas.paste(logo_res, (logo_x, logo_y), logo_res)
 
-    # 6. BANDA WHATSAPP — píldora centrada horizontalmente
-    WS_W  = 700
-    WS_H  = 110
-    WS_Y  = 935
-    WS_X1 = (W - WS_W) // 2
-    WS_X2 = WS_X1 + WS_W
+    # ─────────────────────────────────────────────────────────────
+    # 6. BANDA WHATSAPP
+    # Como en la imagen 2:
+    # - Empieza desde el borde izquierdo (x=0)
+    # - Termina antes del logo (deja espacio para el logo a la derecha)
+    # - Ovalada solo en el extremo derecho
+    # - Pegada al borde inferior
+    # ─────────────────────────────────────────────────────────────
+    WS_H  = 120          # alto de la banda
+    WS_Y  = H - WS_H    # pegada al borde inferior (Y = 960)
+    WS_X1 = 0            # empieza desde el borde izquierdo
+    WS_X2 = W - logo_w - 10  # termina antes del logo
 
     dibujar_pildora(draw, WS_X1, WS_Y, WS_X2, WS_Y + WS_H, COLOR_VERDE_WS)
 
-    # Ícono WhatsApp dentro de la píldora
-    ICONO_W = 60
+    # Ícono WhatsApp — izquierda dentro de la banda
+    ICONO_W = 72
+    icono_x = 25
     icono_y = WS_Y + (WS_H - ICONO_W) // 2
     try:
         path_ws = os.path.join(RUTA_ICONOS, "icon_whatsapp.png")
         icon_ws = Image.open(path_ws).convert("RGBA").resize((ICONO_W, ICONO_W), Image.LANCZOS)
-        canvas.paste(icon_ws, (WS_X1 + 30, icono_y), icon_ws)
+        canvas.paste(icon_ws, (icono_x, icono_y), icon_ws)
     except:
         pass
 
-    # Texto WhatsApp centrado dentro de la píldora
-    f_ws = cargar_fuente(FUENTE_TITULO, 44)
+    # Número WhatsApp — grande, centrado en la banda (considerando espacio del ícono)
+    f_ws = cargar_fuente(FUENTE_TITULO, 58)  # más grande que antes
     texto_ws = WHATSAPP_NUMERO
     bbox_ws = draw.textbbox((0, 0), texto_ws, font=f_ws)
-    texto_w = bbox_ws[2] - bbox_ws[0]
-    texto_h = bbox_ws[3] - bbox_ws[1]
-    texto_x = WS_X1 + (WS_W - texto_w) // 2 + 20
+    texto_w  = bbox_ws[2] - bbox_ws[0]
+    texto_h  = bbox_ws[3] - bbox_ws[1]
+
+    # Zona disponible para el texto (después del ícono, antes del extremo derecho de la banda)
+    zona_inicio = icono_x + ICONO_W + 15
+    zona_ancho  = (WS_X2 - WS_H // 2) - zona_inicio  # restamos el radio derecho
+    texto_x = zona_inicio + (zona_ancho - texto_w) // 2
     texto_y = WS_Y + (WS_H - texto_h) // 2 - 3
     draw.text((texto_x, texto_y), texto_ws, font=f_ws, fill=COLOR_BLANCO)
 
-    # 7. Logo Chilenito
-    logo_w = 300
-    logo_h = int(logo.height * (logo_w / logo.width))
-    logo_res = logo.convert("RGBA").resize((logo_w, logo_h), Image.LANCZOS)
-    logo_x = W - logo_w - 40
-    logo_y = H - logo_h - 30
-    canvas.paste(logo_res, (logo_x, logo_y), logo_res)
+    # 7. "Entregas todo Lima" — justo encima de la banda verde, izquierda
+    try:
+        path_truck = os.path.join(RUTA_ICONOS, "icon_truck.png")
+        icon_truck = Image.open(path_truck).convert("RGBA").resize((36, 36), Image.LANCZOS)
+        canvas.paste(icon_truck, (25, WS_Y - 48), icon_truck)
+        txt_x = 68
+    except:
+        txt_x = 25
+    draw.text((txt_x, WS_Y - 46), "Entregas todo Lima",
+              font=cargar_fuente(FUENTE_REGULAR, 26), fill=COLOR_AZUL)
 
     ruta = "post_final.jpg"
     canvas.save(ruta, "JPEG", quality=97, subsampling=0)
     return ruta
-
 # ─────────────────────────────────────────────
 # GITHUB
 # ─────────────────────────────────────────────
