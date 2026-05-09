@@ -76,7 +76,7 @@ def descargar_logo(service):
 
 def generar_imagen_ia(descripcion):
     print(f"\n🎨 Generando imagen IA...")
-    prompt = f"Professional photography of {descripcion}, high quality melamine wood texture, realistic lighting, modern showroom background, 8k resolution"
+    prompt = f"Professional product photography of ONE SINGLE melamine furniture piece: {descripcion}. Isolated single piece, melamina wood texture clearly visible, clean studio lighting, plain white or neutral background, centered composition, 8k resolution, photorealistic, no people, no other furniture, no clutter"
     prompt_encoded = urllib.parse.quote(prompt)
     url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&model=flux&nologo=true"
     print("   ⏳ Pollinations AI (puede tardar 20-40 seg)...")
@@ -134,10 +134,12 @@ def generar_caption_groq(mueble):
         "Content-Type": "application/json"
     }
     prompt = (
-        f"Escribe un post de Facebook e Instagram para 'Chilenito Melaminero' "
+        f"Escribe un post CORTO de Facebook e Instagram para 'Chilenito Melaminero' "
         f"(mueblista en SJL, Lima Perú). El mueble es: {mueble}. "
-        f"Tono cercano y profesional. Incluye emojis y 8 hashtags al final. "
-        f"Llamada a la acción para WhatsApp. Máximo 250 palabras."
+        f"Tono cercano. Máximo 60 palabras en total. "
+        f"Estructura: 1 línea atractiva + 2 beneficios cortos + CTA. "
+        f"Incluye SIEMPRE este WhatsApp al final: 📲 WhatsApp: +51 903 427 486. "
+        f"Después del WhatsApp agrega 6 hashtags."
     )
     payload = {
         "model": "llama-3.3-70b-versatile",
@@ -216,7 +218,7 @@ def main():
         caption = generar_caption_groq(mueble)
         if not caption:
             print("\n💥 No se pudo generar caption, usando uno por defecto")
-            caption = f"🪑 {mueble}\n\n¡Calidad y diseño para tu hogar!\n\n📲 Escríbenos por WhatsApp\n\n#Muebles #Melamina #Lima #SJL #ChilenitoMelaminero #MueblesPeru #Decoracion #HogarPeru"
+            caption = f"🪑 {mueble}\n\nCalidad y diseño en melamina para tu hogar.\n\n📲 WhatsApp: +51 903 427 486\n\n#Muebles #Melamina #Lima #SJL #ChilenitoMelaminero #MueblesPeru"
         
         fb_ok = publicar_en_facebook(ruta, caption)
         ig_ok = False
@@ -239,4 +241,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
