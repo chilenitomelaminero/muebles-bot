@@ -2,6 +2,10 @@ name: Publicador Muebles Bot
 
 on:
   workflow_dispatch:
+  schedule:
+    # Cada 5 min entre 9:00-9:59 AM Lima (14:00-14:59 UTC)
+    # El script decide internamente el minuto aleatorio del día
+    - cron: '*/5 14 * * *'
 
 jobs:
   publicar:
@@ -30,4 +34,5 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python main.py
