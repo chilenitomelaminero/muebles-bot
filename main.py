@@ -199,9 +199,9 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     ZONA_INFERIOR = int(H * 0.83)   # límite antes del WhatsApp/logo
     ZONA_H = ZONA_INFERIOR - ZONA_SUPERIOR
 
-    # Escalar al 70% del ancho o alto disponible (el mayor que quepa)
-    MAX_W = int(W * 0.70)           # 70% del ancho
-    MAX_H = int(ZONA_H * 0.95)      # 95% de la zona disponible
+    # Escalar al 91% del ancho o alto disponible (+30% respecto al original)
+    MAX_W = int(W * 0.91)           # 91% del ancho  (era 70%)
+    MAX_H = int(ZONA_H * 0.98)      # 98% de la zona disponible (era 95%)
     ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
     new_w = int(mueble.width * ratio)
     new_h = int(mueble.height * ratio)
