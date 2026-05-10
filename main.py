@@ -271,39 +271,34 @@ def generar_caption(titulo, nombre_archivo):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-    titulo_limpio = titulo.title().replace(" ", "")
+    titulo_limpio  = titulo.title().replace(" ", "")
+    keyword_seo    = f"{titulo.title()} a medida Lima"   # keyword principal SEO
+
     hashtags = (
         f"#{titulo_limpio} #{titulo_limpio}AMedida "
         f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
         f"#ElChilenitoMelaminero #OrganizacionHogar"
     )
-    desc_mueble = nombre_archivo.replace("_", " ").replace(".png", "")
 
     prompt = (
         f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
-        f"Escribe un post de Facebook e Instagram para: {desc_mueble} a medida en melamina.\n\n"
-        f"Sigue EXACTAMENTE esta estructura:\n\n"
-        f"[LÍNEA 1] Una frase gancho atractiva sobre el {titulo} a medida.\n\n"
-        f"[LÍNEA 2] Beneficio principal (1-2 oraciones).\n\n"
-        f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
-        f"[CARACTERÍSTICAS] 6 con emoji ✅:\n"
-        f"✅ Diseño personalizado según tu espacio\n"
-        f"✅ [característica específica del {titulo}]\n"
-        f"✅ Colores disponibles a elección\n"
-        f"✅ Material resistente y duradero\n"
-        f"✅ Precios accesibles\n"
-        f"✅ Entregas a domicilio en SJL y todo Lima\n\n"
-        f"[MOTIVADORA] Una oración motivadora.\n\n"
-        f"[CTA] Escribe EXACTAMENTE: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada'\n\n"
-        f"[HASHTAGS]: {hashtags}\n\n"
-        f"Solo el texto, sin corchetes, en español peruano natural."
+        f"Escribe un post CORTO para Facebook e Instagram.\n\n"
+        f"REGLAS SEO:\n"
+        f"- La PRIMERA línea debe contener exactamente la keyword: '{keyword_seo}'\n"
+        f"- Úsala de forma natural, no forzada.\n\n"
+        f"ESTRUCTURA (respeta el orden, sin corchetes en la respuesta):\n"
+        f"1. Frase gancho que incluya '{keyword_seo}'.\n"
+        f"2. Máximo 3 características con emoji ✅ (las más relevantes del {titulo}).\n"
+        f"3. CTA exacto: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO}'\n"
+        f"4. Hashtags: {hashtags}\n\n"
+        f"Máximo 180 palabras. Español peruano natural. Solo el texto, sin explicaciones."
     )
 
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 900
+        "max_tokens": 400        # era 900 — reducido para forzar brevedad
     }
 
     r = requests.post(url, headers=headers, json=payload).json()
