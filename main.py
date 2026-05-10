@@ -360,40 +360,63 @@ def generar_caption(titulo, nombre_archivo):
         f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
         f"#ElChilenitoMelaminero #OrganizacionHogar"
     )
-    desc_mueble = nombre_archivo.replace("_", " ").replace(".png", "")
 
-    # Obtener el ambiente correcto para este mueble
+    # Ambiente correcto para este mueble
     ambiente = CONTEXTO_MUEBLE.get(titulo, "hogar")
+
+    # Característica interna específica según tipo de mueble
+    CARACTERISTICA_INTERNA = {
+        "ROPERO":           "Distribución interna funcional (colgado, cajones, repisas) 👚",
+        "ROPERO BEBÉ":      "Distribución interna adaptada para ropa de bebé 🍼",
+        "ROPERO TOCADOR":   "Espejo integrado y cajones organizadores 🪞",
+        "CAJONERA":         "Cajones amplios y deslizantes de fácil acceso 🗄️",
+        "TOCADOR":          "Espejo y compartimentos organizadores incluidos 💄",
+        "VELADOR":          "Cajón y repisa lateral para mayor funcionalidad 🌙",
+        "ESCRITORIO":       "Superficie amplia y cajones para organizar tus materiales 📚",
+        "ESTANTE":          "Repisas regulables según tus necesidades 📂",
+        "LIBRERO":          "Repisas a medida para todo tipo de libros 📖",
+        "COCINA":           "Muebles diseñados para maximizar el espacio 🍳",
+        "MUEBLE COCINA":    "Cajones y puertas con cierre suave 🍽️",
+        "REPOSTERO":        "Repisas internas regulables para mayor almacenamiento 🧺",
+        "DESPENSA":         "Múltiples compartimentos para mantener todo ordenado 🥫",
+        "MUEBLE HORNO":     "Soporte reforzado apto para horno y microondas 🔥",
+        "AUXILIAR BAÑO":    "Compartimentos resistentes a la humedad 🚿",
+        "CENTRO DE TV":     "Espacio para TV, decodificador y accesorios 📺",
+        "CENTRO TV":        "Espacio para TV, decodificador y accesorios 📺",
+        "MESA DE CENTRO":   "Superficie amplia y repisa inferior de almacenamiento ☕",
+        "ORGANIZADOR":      "Múltiples divisiones para mantener todo en su lugar 🗂️",
+        "MULTIFUNCIONAL":   "Diseño versátil que se adapta a diferentes usos 🔧",
+    }
+    caract_interna = CARACTERISTICA_INTERNA.get(titulo, f"Diseño específico para {ambiente} ✨")
 
     prompt = (
         f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
-        f"Escribe un post de Facebook e Instagram para: {desc_mueble} a medida en melamina.\n\n"
-        f"IMPORTANTE: Este mueble es para {ambiente}. "
-        f"NO menciones ambientes distintos a '{ambiente}'. "
-        f"Si el mueble es para dormitorio, NO digas 'transforma tu baño', 'tu cocina', etc. "
-        f"Mantén todo el texto relacionado exclusivamente al {ambiente}.\n\n"
-        f"Sigue EXACTAMENTE esta estructura:\n\n"
-        f"[LÍNEA 1] Una frase gancho atractiva sobre el {titulo} a medida para {ambiente}.\n\n"
-        f"[LÍNEA 2] Beneficio principal (1-2 oraciones).\n\n"
-        f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
-        f"[CARACTERÍSTICAS] 6 con emoji ✅:\n"
+        f"Escribe un post corto para Facebook e Instagram sobre: {titulo} a medida en melamina para {ambiente}.\n\n"
+        f"REGLAS ESTRICTAS:\n"
+        f"- Todo el texto debe hablar exclusivamente de {ambiente}. NO menciones otros ambientes.\n"
+        f"- El post debe ser CORTO. Máximo 10 líneas en total.\n"
+        f"- Sin introducciones, sin explicaciones, solo el post.\n\n"
+        f"Sigue EXACTAMENTE este formato, sin cambiar nada de lo que está en mayúsculas o entre comillas:\n\n"
+        f"[frase gancho creativa sobre el {titulo} a medida — 1 línea con emoji]\n\n"
+        f"[beneficio principal del {titulo} para {ambiente} — 1 sola oración con emoji]\n\n"
+        f"En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡\n\n"
         f"✅ Diseño personalizado según tu espacio\n"
-        f"✅ [característica específica del {titulo}]\n"
-        f"✅ Colores disponibles a elección\n"
-        f"✅ Material resistente y duradero\n"
-        f"✅ Precios accesibles\n"
-        f"✅ Entregas a domicilio en SJL y todo Lima\n\n"
-        f"[MOTIVADORA] Una oración motivadora relacionada con {ambiente}.\n\n"
-        f"[CTA] Escribe EXACTAMENTE: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada'\n\n"
-        f"[HASHTAGS]: {hashtags}\n\n"
-        f"Solo el texto, sin corchetes, en español peruano natural."
+        f"✅ {caract_interna}\n"
+        f"✅ Colores disponibles a elección 🎨\n"
+        f"✅ Material resistente y duradero 💪\n"
+        f"✅ Precios accesibles 💰\n"
+        f"✅ Entregas a domicilio en SJL y todo Lima 🚚\n\n"
+        f"[frase motivadora corta sobre {ambiente} — 1 línea con emoji]\n\n"
+        f"📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada\n\n"
+        f"{hashtags}\n\n"
+        f"Responde SOLO con el post. Sin corchetes, sin explicaciones, en español peruano natural."
     )
 
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 900
+        "max_tokens": 400       # reducido para forzar respuestas cortas
     }
 
     r = requests.post(url, headers=headers, json=payload).json()
