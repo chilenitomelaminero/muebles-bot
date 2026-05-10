@@ -195,13 +195,13 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     mueble = imagen_mueble.convert("RGBA")
 
     # Zona disponible: entre el área del título (arriba) y el WhatsApp/logo (abajo)
-    ZONA_SUPERIOR = int(H * 0.23)   # espacio para título arriba
-    ZONA_INFERIOR = int(H * 0.83)   # límite antes del WhatsApp/logo
+    ZONA_SUPERIOR = int(H * 0.18)   # espacio para título arriba
+    ZONA_INFERIOR = H    # hasta el borde completo (logo está en el fondo)
     ZONA_H = ZONA_INFERIOR - ZONA_SUPERIOR
 
     # Escalar al 91% del ancho o alto disponible (+30% respecto al original)
-    MAX_W = int(W * 0.91)           # 91% del ancho  (era 70%)
-    MAX_H = int(ZONA_H * 0.98)      # 98% de la zona disponible (era 95%)
+    MAX_W = int(W * 0.97)           # 91% del ancho  (era 70%)
+    MAX_H = int(ZONA_H * 0.99)      # 98% de la zona disponible (era 95%)
     ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
     new_w = int(mueble.width * ratio)
     new_h = int(mueble.height * ratio)
