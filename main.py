@@ -3,19 +3,20 @@ MUEBLES BOT - Chilenito Melaminero
 Sistema con fondo plantilla + PNG sin fondo desde GitHub
 - Fondo AZUL → letras BLANCAS
 - Fondo BLANCO → letras AZULES
-- Imagen mueble grande (91% del canvas)
-- Rotación automática de imágenes sin repetir
+- Imagen mueble grande (70% del canvas)
 """
 
 import os
 import io
 import json
 import base64
-import random
 import requests
 import time
+import hashlib
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from google.oauth2 import service_account
 
 # ─────────────────────────────────────────────
@@ -28,22 +29,22 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN     = os.environ.get("GH_TOKEN")
 GH_REPO      = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
-# FONDOS DISPONIBLES
+# FONDOS DISPONIBLES — agrega más cuando tengas más fondos
 FONDOS = [
-    {"ruta": "plantilla/FD_AZUL.png",   "tipo": "azul"},
-    {"ruta": "plantilla/FD_BLANCO.png", "tipo": "blanco"},
+    {"ruta": "plantilla/FD_AZUL.png",         "tipo": "azul"},
+    {"ruta": "plantilla/FD_BLANCO.png",        "tipo": "blanco"},
+    {"ruta": "plantilla/FD_TRANPARENTE.png",   "tipo": "transparente"},
 ]
 
 RUTA_MUEBLES   = "muebles_sin_fondo"
-RUTA_REGISTRO  = "publicados.json"
 FUENTE_TITULO  = "fonts/Montserrat-ExtraBold.ttf"
 FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
 
 # COLORES según tipo de fondo
 COLORES_POR_FONDO = {
-    "azul":   {"titulo": (255, 255, 255), "cursiva": (255, 220, 0), "sombra": (0, 0, 0)},
-    "blanco": {"titulo": (0, 56, 159),    "cursiva": (0, 56, 159),  "sombra": (200, 200, 200)},
-    # (0, 56, 159) = #00389F — azul corporativo para fondo blanco
+    "azul":         {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
+    "blanco":       {"titulo": (0, 56, 159),    "cursiva": (0, 56, 159),   "sombra": (200, 200, 200)},
+    "transparente": {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
 }
 
 WHATSAPP_NUMERO = "+51 903 427 486"
@@ -104,39 +105,11 @@ MAPA_TITULOS = {
 }
 
 # ─────────────────────────────────────────────
-# CONTEXTO DE AMBIENTE por título de mueble
-# ─────────────────────────────────────────────
-CONTEXTO_MUEBLE = {
-    "CAJONERA":         "dormitorio",
-    "TOCADOR":          "dormitorio",
-    "ROPERO":           "dormitorio",
-    "ROPERO BEBÉ":      "habitación de bebé",
-    "ROPERO TOCADOR":   "dormitorio",
-    "VELADOR":          "dormitorio",
-    "ORGANIZADOR":      "dormitorio",
-    "ESCRITORIO":       "oficina o estudio",
-    "ESTANTE":          "oficina o sala",
-    "LIBRERO":          "sala o estudio",
-    "COCINA":           "cocina",
-    "MUEBLE COCINA":    "cocina",
-    "REPOSTERO":        "cocina",
-    "DESPENSA":         "cocina",
-    "MUEBLE HORNO":     "cocina",
-    "AUXILIAR BAÑO":    "baño",
-    "CENTRO DE TV":     "sala de estar",
-    "CENTRO TV":        "sala de estar",
-    "MESA DE CENTRO":   "sala de estar",
-    "MULTIFUNCIONAL":   "hogar",
-}
-
-# ─────────────────────────────────────────────
 # UTILIDADES
 # ─────────────────────────────────────────────
 def cargar_fuente(ruta, tamano):
-    try:
-        return ImageFont.truetype(ruta, tamano)
-    except:
-        return ImageFont.load_default()
+    try: return ImageFont.truetype(ruta, tamano)
+    except: return ImageFont.load_default()
 
 def ajustar_tamano_fuente(texto, ruta_fuente, tamano_maximo, ancho_maximo):
     tamano = tamano_maximo
@@ -154,21 +127,29 @@ def ajustar_tamano_fuente(texto, ruta_fuente, tamano_maximo, ancho_maximo):
 def nombre_a_titulo(nombre_archivo):
     nombre = os.path.splitext(nombre_archivo)[0].lower()
     nombre = (nombre
-        .replace("ñ", "n").replace("á", "a").replace("é", "e")
-        .replace("í", "i").replace("ó", "o").replace("ú", "u"))
+        .replace("ñ","n").replace("á","a").replace("é","e")
+        .replace("í","i").replace("ó","o").replace("ú","u"))
     if nombre in MAPA_TITULOS:
         return MAPA_TITULOS[nombre]
     return nombre.replace("_", " ").upper()
 
 def elegir_fondo_del_dia():
-    """Rota entre los fondos disponibles aleatoriamente."""
-    fondo = random.choice(FONDOS)
-    print(f"   🎨 Fondo elegido: {fondo['ruta']} (tipo: {fondo['tipo']})")
+    """Rota entre los fondos disponibles día a día."""
+    hoy = datetime.now().strftime("%Y%m%d")
+    semilla = int(hashlib.md5(hoy.encode()).hexdigest(), 16)
+    indice = semilla % len(FONDOS)
+    fondo = FONDOS[indice]
+    print(f"   🎨 Fondo del día: {fondo['ruta']} (tipo: {fondo['tipo']})")
     return fondo
 
-# ─────────────────────────────────────────────
-# GITHUB — listar y descargar muebles
-# ─────────────────────────────────────────────
+def elegir_imagen_del_dia(lista_archivos):
+    """Imagen diferente cada día."""
+    hoy = datetime.now().strftime("%Y%m%d")
+    # Semilla diferente a la del fondo para que no siempre coincidan igual
+    semilla = int(hashlib.md5((hoy + "mueble").encode()).hexdigest(), 16)
+    indice = semilla % len(lista_archivos)
+    return lista_archivos[indice]
+
 def listar_muebles_github():
     """Lista todos los PNG en muebles_sin_fondo del repo."""
     url = f"https://api.github.com/repos/{GH_REPO}/contents/{RUTA_MUEBLES}"
@@ -192,71 +173,6 @@ def descargar_mueble_github(nombre_archivo):
     return None
 
 # ─────────────────────────────────────────────
-# REGISTRO DE IMÁGENES YA PUBLICADAS
-# ─────────────────────────────────────────────
-def cargar_registro_github():
-    """Lee el JSON de imágenes ya publicadas desde el repo."""
-    url = f"https://api.github.com/repos/{GH_REPO}/contents/{RUTA_REGISTRO}"
-    headers = {"Authorization": f"Bearer {GH_TOKEN}"}
-    r = requests.get(url, headers=headers).json()
-
-    if "content" in r:
-        contenido = base64.b64decode(r["content"]).decode("utf-8")
-        datos = json.loads(contenido)
-        sha = r["sha"]
-        print(f"   📋 Registro cargado: {len(datos['publicados'])} publicadas")
-        return datos["publicados"], sha
-
-    # Si no existe el archivo todavía, empezamos desde cero
-    print("   📋 Sin registro previo, comenzando desde cero")
-    return [], None
-
-def guardar_registro_github(lista_publicados, sha=None):
-    """Guarda el JSON actualizado en el repo."""
-    url = f"https://api.github.com/repos/{GH_REPO}/contents/{RUTA_REGISTRO}"
-    headers = {"Authorization": f"Bearer {GH_TOKEN}"}
-
-    contenido = json.dumps({"publicados": lista_publicados}, indent=2, ensure_ascii=False)
-    payload = {
-        "message": f"Registro actualizado — {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        "content": base64.b64encode(contenido.encode("utf-8")).decode("utf-8"),
-        "branch": "main"
-    }
-    if sha:
-        payload["sha"] = sha  # requerido para actualizar archivo existente
-
-    r = requests.put(url, headers=headers, json=payload)
-    ok = r.status_code in (200, 201)
-    print(f"   {'✅' if ok else '❌'} Registro guardado ({len(lista_publicados)} entradas)")
-    return ok
-
-def elegir_imagen_nueva(lista_archivos):
-    """
-    Elige una imagen que NO se haya publicado aún.
-    Si todas fueron publicadas, resetea el registro y empieza de nuevo.
-    Devuelve: (nombre_archivo, lista_actualizada, sha)
-    """
-    publicados, sha = cargar_registro_github()
-
-    # Filtrar las que todavía no se han usado
-    pendientes = [f for f in lista_archivos if f not in publicados]
-
-    if not pendientes:
-        print("   🔄 Todas las imágenes fueron publicadas. Reseteando registro...")
-        publicados = []
-        sha = None
-        pendientes = list(lista_archivos)
-
-    # Elegir aleatoriamente entre las pendientes
-    elegida = random.choice(pendientes)
-    publicados.append(elegida)
-
-    print(f"   🎲 Imagen elegida: {elegida}")
-    print(f"   📊 Pendientes restantes: {len(pendientes) - 1} / {len(lista_archivos)}")
-
-    return elegida, publicados, sha
-
-# ─────────────────────────────────────────────
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def componer_pieza(fondo_info, imagen_mueble, titulo):
@@ -274,77 +190,40 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     canvas = Image.new("RGBA", (W, H))
     canvas.paste(fondo, (0, 0))
 
-    # 2. Imagen mueble
+    # 2. Imagen mueble — GRANDE (70% del canvas)
     print("   🪑 Posicionando mueble...")
     mueble = imagen_mueble.convert("RGBA")
 
-    # Recorte automático de bordes vacíos
-    bbox = mueble.getbbox()
-    if bbox:
-        mueble = mueble.crop(bbox)
-
-    ZONA_SUPERIOR = int(H * 0.28)   # espacio para título arriba
-    ZONA_INFERIOR = int(H * 0.88)   # límite antes del WhatsApp/logo
+    # Zona disponible: entre el área del título (arriba) y el WhatsApp/logo (abajo)
+    ZONA_SUPERIOR = int(H * 0.23)   # espacio para título arriba
+    ZONA_INFERIOR = int(H * 0.83)   # límite antes del WhatsApp/logo
     ZONA_H = ZONA_INFERIOR - ZONA_SUPERIOR
 
-    # Tamaño base
-    MAX_W = int(W * 0.82)
-    MAX_H = int(ZONA_H * 0.88)
-
-    # Ajuste por tipo de mueble (los altos no deben ocupar todo el ancho)
-    if "ROPERO" in titulo:
-        MAX_W = int(W * 0.74)
-    elif "VELADOR" in titulo:
-        MAX_W = int(W * 0.58)
-    elif "TOCADOR" in titulo:
-        MAX_W = int(W * 0.72)
-
+    # Escalar al 70% del ancho o alto disponible (el mayor que quepa)
+    MAX_W = int(W * 0.70)           # 70% del ancho
+    MAX_H = int(ZONA_H * 0.95)      # 95% de la zona disponible
     ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
     new_w = int(mueble.width * ratio)
     new_h = int(mueble.height * ratio)
     mueble = mueble.resize((new_w, new_h), Image.LANCZOS)
 
+    # Centrar en la zona disponible
     mueble_x = (W - new_w) // 2
-    mueble_y = ZONA_SUPERIOR + (ZONA_H - new_h) // 2 + 20
-
-    # ── Halo de luz suave (solo en fondo azul, invisible en blanco) ──
-    if fondo_info["tipo"] == "azul":
-        halo_size = int(max(new_w, new_h) * 1.08)
-        halo = Image.new("RGBA", (halo_size, halo_size), (255, 255, 255, 0))
-        ImageDraw.Draw(halo).ellipse(
-            (0, 0, halo_size, halo_size),
-            fill=(255, 255, 255, 28)
-        )
-        halo = halo.filter(ImageFilter.GaussianBlur(45))
-        halo_x = mueble_x - (halo_size - new_w) // 2
-        halo_y = mueble_y - (halo_size - new_h) // 2
-        canvas.paste(halo, (halo_x, halo_y), halo)
-
-    # ── Sombra con la SILUETA del mueble (usa canal alpha del PNG) ──
-    alpha = mueble.split()[3]                        # extrae transparencia real
-    sombra_color = Image.new("RGBA", mueble.size, (0, 0, 0, 0))
-    sombra_color.putalpha(alpha)
-    # Pintar negro donde hay silueta y difuminar
-    negro = Image.new("RGBA", mueble.size, (0, 0, 0, 80))
-    negro.putalpha(alpha)
-    sombra = negro.filter(ImageFilter.GaussianBlur(18))
-    canvas.paste(sombra, (mueble_x + 12, mueble_y + 16), sombra)
-
-    # ── Pegar mueble ──
+    mueble_y = ZONA_SUPERIOR + (ZONA_H - new_h) // 2
     canvas.paste(mueble, (mueble_x, mueble_y), mueble)
 
     # Convertir a RGB para texto
     canvas_rgb = canvas.convert("RGB")
     draw = ImageDraw.Draw(canvas_rgb)
 
-    # 3. Título grande centrado — un poco más abajo
+    # 3. Título grande centrado arriba
     print(f"   ✍️  Título: {titulo} | Color: {COLOR_TITULO}")
     f_tit, tit_size = ajustar_tamano_fuente(titulo, FUENTE_TITULO, 120, W - 60)
     bbox_t = draw.textbbox((0, 0), titulo, font=f_tit)
     tit_w  = bbox_t[2] - bbox_t[0]
     tit_h  = bbox_t[3] - bbox_t[1]
     tit_x  = (W - tit_w) // 2
-    tit_y  = 55                     # bajado respecto al original (era 20)
+    tit_y  = 20
 
     # Sombra
     draw.text((tit_x + 3, tit_y + 3), titulo, font=f_tit, fill=COLOR_SOMBRA)
@@ -398,135 +277,52 @@ def generar_caption(titulo, nombre_archivo):
         f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
         f"#ElChilenitoMelaminero #OrganizacionHogar"
     )
-
-    # Ambiente correcto para este mueble
-    ambiente = CONTEXTO_MUEBLE.get(titulo, "hogar")
-
-    # Característica interna específica según tipo de mueble
-    CARACTERISTICA_INTERNA = {
-        "ROPERO":           "Distribución interna funcional (colgado, cajones, repisas) 👚",
-        "ROPERO BEBÉ":      "Distribución interna adaptada para ropa de bebé 🍼",
-        "ROPERO TOCADOR":   "Espejo integrado y cajones organizadores 🪞",
-        "CAJONERA":         "Cajones amplios y deslizantes de fácil acceso 🗄️",
-        "TOCADOR":          "Espejo y compartimentos organizadores incluidos 💄",
-        "VELADOR":          "Cajón y repisa lateral para mayor funcionalidad 🌙",
-        "ESCRITORIO":       "Superficie amplia y cajones para organizar tus materiales 📚",
-        "ESTANTE":          "Repisas regulables según tus necesidades 📂",
-        "LIBRERO":          "Repisas a medida para todo tipo de libros 📖",
-        "COCINA":           "Muebles diseñados para maximizar el espacio 🍳",
-        "MUEBLE COCINA":    "Cajones y puertas con cierre suave 🍽️",
-        "REPOSTERO":        "Repisas internas regulables para mayor almacenamiento 🧺",
-        "DESPENSA":         "Múltiples compartimentos para mantener todo ordenado 🥫",
-        "MUEBLE HORNO":     "Soporte reforzado apto para horno y microondas 🔥",
-        "AUXILIAR BAÑO":    "Compartimentos resistentes a la humedad 🚿",
-        "CENTRO DE TV":     "Espacio para TV, decodificador y accesorios 📺",
-        "CENTRO TV":        "Espacio para TV, decodificador y accesorios 📺",
-        "MESA DE CENTRO":   "Superficie amplia y repisa inferior de almacenamiento ☕",
-        "ORGANIZADOR":      "Múltiples divisiones para mantener todo en su lugar 🗂️",
-        "MULTIFUNCIONAL":   "Diseño versátil que se adapta a diferentes usos 🔧",
-    }
-    caract_interna = CARACTERISTICA_INTERNA.get(titulo, f"Diseño específico para {ambiente} ✨")
+    desc_mueble = nombre_archivo.replace("_", " ").replace(".png", "")
 
     prompt = (
         f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
-        f"Escribe un post corto para Facebook e Instagram sobre: {titulo} a medida en melamina para {ambiente}.\n\n"
-        f"REGLAS ESTRICTAS:\n"
-        f"- Todo el texto debe hablar exclusivamente de {ambiente}. NO menciones otros ambientes.\n"
-        f"- El post debe ser CORTO. Máximo 10 líneas en total.\n"
-        f"- Sin introducciones, sin explicaciones, solo el post.\n\n"
-        f"Sigue EXACTAMENTE este formato, sin cambiar nada de lo que está en mayúsculas o entre comillas:\n\n"
-        f"[frase gancho creativa sobre el {titulo} a medida — 1 línea con emoji]\n\n"
-        f"[beneficio principal del {titulo} para {ambiente} — 1 sola oración con emoji]\n\n"
-        f"En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡\n\n"
+        f"Escribe un post de Facebook e Instagram para: {desc_mueble} a medida en melamina.\n\n"
+        f"Sigue EXACTAMENTE esta estructura:\n\n"
+        f"[LÍNEA 1] Una frase gancho atractiva sobre el {titulo} a medida.\n\n"
+        f"[LÍNEA 2] Beneficio principal (1-2 oraciones).\n\n"
+        f"[LÍNEA 3] Escribe EXACTAMENTE: 'En El Chilenito Melaminero creamos soluciones que combinan orden, diseño y buen precio 🏡'\n\n"
+        f"[CARACTERÍSTICAS] 6 con emoji ✅:\n"
         f"✅ Diseño personalizado según tu espacio\n"
-        f"✅ {caract_interna}\n"
-        f"✅ Colores disponibles a elección 🎨\n"
-        f"✅ Material resistente y duradero 💪\n"
-        f"✅ Precios accesibles 💰\n"
-        f"✅ Entregas a domicilio en SJL y todo Lima 🚚\n\n"
-        f"[frase motivadora corta sobre {ambiente} — 1 línea con emoji]\n\n"
-        f"📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada\n\n"
-        f"{hashtags}\n\n"
-        f"Responde SOLO con el post. Sin corchetes, sin explicaciones, en español peruano natural."
+        f"✅ [característica específica del {titulo}]\n"
+        f"✅ Colores disponibles a elección\n"
+        f"✅ Material resistente y duradero\n"
+        f"✅ Precios accesibles\n"
+        f"✅ Entregas a domicilio en SJL y todo Lima\n\n"
+        f"[MOTIVADORA] Una oración motivadora.\n\n"
+        f"[CTA] Escribe EXACTAMENTE: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO} y recibe asesoría personalizada'\n\n"
+        f"[HASHTAGS]: {hashtags}\n\n"
+        f"Solo el texto, sin corchetes, en español peruano natural."
     )
 
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 400       # reducido para forzar respuestas cortas
+        "max_tokens": 900
     }
 
     r = requests.post(url, headers=headers, json=payload).json()
     caption = r['choices'][0]['message']['content']
-    print(f"   ✅ Caption: {len(caption)} caracteres | Ambiente: {ambiente}")
+    print(f"   ✅ Caption: {len(caption)} caracteres")
     return caption
 
 # ─────────────────────────────────────────────
 # PUBLICACIÓN META
 # ─────────────────────────────────────────────
-def publicar_fb(ruta, texto, intentos=3):
-    """
-    Publicación en Facebook en DOS pasos (más confiable):
-      1. Sube la foto sin publicar → obtiene photo_id
-      2. Crea el post en el feed adjuntando el photo_id
-    Reintenta hasta 3 veces ante errores temporales.
-    """
-    for intento in range(1, intentos + 1):
-        try:
-            print(f"   📘 Facebook intento {intento}/{intentos}...")
-
-            # ── PASO 1: subir foto sin publicar ──────────────────────
-            with open(ruta, 'rb') as f:
-                r1 = requests.post(
-                    f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos",
-                    data={'published': 'false', 'access_token': META_TOKEN},
-                    files={'source': f},
-                    timeout=30
-                )
-            res1 = r1.json()
-
-            if 'id' not in res1:
-                print(f"   ❌ FB paso 1 falló: {json.dumps(res1)}")
-                if intento < intentos:
-                    time.sleep(5 * intento)
-                    continue
-                return False
-
-            photo_id = res1['id']
-            print(f"   ✅ Foto subida: photo_id={photo_id}")
-
-            # ── PASO 2: crear post en el feed con la foto ─────────────
-            r2 = requests.post(
-                f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/feed",
-                data={
-                    'message':           texto,
-                    'object_attachment': photo_id,
-                    'access_token':      META_TOKEN,
-                },
-                timeout=30
-            )
-            res2 = r2.json()
-
-            if 'id' in res2:
-                print(f"   ✅ Post publicado en Facebook: {res2['id']}")
-                return True
-            else:
-                print(f"   ❌ FB paso 2 falló: {json.dumps(res2)}")
-                if intento < intentos:
-                    time.sleep(5 * intento)
-
-        except requests.exceptions.Timeout:
-            print(f"   ⏱️  FB timeout en intento {intento}")
-            if intento < intentos:
-                time.sleep(5 * intento)
-        except Exception as e:
-            print(f"   💥 FB error inesperado: {e}")
-            if intento < intentos:
-                time.sleep(5 * intento)
-
-    print("   ❌ Facebook: todos los intentos fallaron")
-    return False
+def publicar_fb(ruta, texto):
+    url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
+    with open(ruta, 'rb') as f:
+        r = requests.post(url,
+            data={'message': texto, 'access_token': META_TOKEN},
+            files={'source': f})
+    ok = 'id' in r.json()
+    if not ok: print(f"⚠️  Facebook: {r.text[:300]}")
+    return ok
 
 def publicar_ig(url_imagen, texto):
     r1 = requests.post(
@@ -543,8 +339,7 @@ def publicar_ig(url_imagen, texto):
         data={'creation_id': c_id, 'access_token': META_TOKEN}
     ).json()
     ok = 'id' in r2
-    if not ok:
-        print(f"⚠️  IG publish: {r2}")
+    if not ok: print(f"⚠️  IG publish: {r2}")
     return ok
 
 # ─────────────────────────────────────────────
@@ -556,56 +351,47 @@ def main():
     print("=" * 60)
 
     try:
-        # 1. Elegir fondo aleatorio
-        print("\n🎨 Eligiendo fondo...")
+        # 1. Elegir fondo del día
+        print("\n🎨 Eligiendo fondo del día...")
         fondo_info = elegir_fondo_del_dia()
 
-        # 2. Listar muebles disponibles
+        # 2. Listar y elegir mueble del día
         print("\n📂 Listando muebles...")
         archivos = listar_muebles_github()
         if not archivos:
             print("❌ No hay imágenes en muebles_sin_fondo")
             return
 
-        # 3. Elegir imagen no publicada aún
-        print("\n🎲 Eligiendo imagen nueva...")
-        nombre_hoy, registro_actualizado, registro_sha = elegir_imagen_nueva(archivos)
+        nombre_hoy = elegir_imagen_del_dia(archivos)
         titulo = nombre_a_titulo(nombre_hoy)
-        print(f"   📅 Mueble del día: {nombre_hoy}")
+        print(f"\n📅 Mueble del día: {nombre_hoy}")
         print(f"   🏷️  Título: {titulo}")
 
-        # 4. Descargar imagen
+        # 3. Descargar imagen
         print(f"\n⬇️  Descargando {nombre_hoy}...")
         imagen_mueble = descargar_mueble_github(nombre_hoy)
         if not imagen_mueble:
             return
         print("   ✅ Descargada")
 
-        # 5. Componer pieza gráfica
+        # 4. Componer
         print("\n🎨 Componiendo pieza gráfica...")
         ruta = componer_pieza(fondo_info, imagen_mueble, titulo)
 
-        # 6. Subir imagen a GitHub
+        # 5. Subir a GitHub
         print("\n📤 Subiendo a GitHub...")
         url_p = subir_a_github(ruta)
 
-        # 7. Generar caption
+        # 6. Caption
         print("\n✍️  Generando caption...")
         caption = generar_caption(titulo, nombre_hoy)
 
-        # 8. Publicar en redes
+        # 7. Publicar
         print("\n📘 Publicando en Facebook...")
         f_ok = publicar_fb(ruta, caption)
 
         print("\n📸 Publicando en Instagram...")
         i_ok = publicar_ig(url_p, caption) if url_p else False
-
-        # 9. Guardar registro SOLO si al menos una red publicó bien
-        if f_ok or i_ok:
-            print("\n💾 Actualizando registro de publicadas...")
-            guardar_registro_github(registro_actualizado, registro_sha)
-        else:
-            print("\n⚠️  No se guardó el registro porque ambas publicaciones fallaron")
 
         print(f"\n{'='*60}")
         print(f"  Facebook:  {'✅' if f_ok else '❌'}")
