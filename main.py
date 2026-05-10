@@ -426,16 +426,68 @@ def generar_caption(titulo, nombre_archivo):
 # ─────────────────────────────────────────────
 # PUBLICACIÓN META
 # ─────────────────────────────────────────────
-def publicar_fb(ruta, texto):
-    url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
-    with open(ruta, 'rb') as f:
-        r = requests.post(url,
-            data={'message': texto, 'access_token': META_TOKEN},
-            files={'source': f})
-    ok = 'id' in r.json()
-    if not ok:
-        print(f"⚠️  Facebook: {r.text[:300]}")
-    return ok
+def publicar_fb(ruta, texto, intentos=3):
+    """
+    Publicación en Facebook en DOS pasos (más confiable):
+      1. Sube la foto sin publicar → obtiene photo_id
+      2. Crea el post en el feed adjuntando el photo_id
+    Reintenta hasta 3 veces ante errores temporales.
+    """
+    for intento in range(1, intentos + 1):
+        try:
+            print(f"   📘 Facebook intento {intento}/{intentos}...")
+
+            # ── PASO 1: subir foto sin publicar ──────────────────────
+            with open(ruta, 'rb') as f:
+                r1 = requests.post(
+                    f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos",
+                    data={'published': 'false', 'access_token': META_TOKEN},
+                    files={'source': f},
+                    timeout=30
+                )
+            res1 = r1.json()
+
+            if 'id' not in res1:
+                print(f"   ❌ FB paso 1 falló: {json.dumps(res1)}")
+                if intento < intentos:
+                    time.sleep(5 * intento)
+                    continue
+                return False
+
+            photo_id = res1['id']
+            print(f"   ✅ Foto subida: photo_id={photo_id}")
+
+            # ── PASO 2: crear post en el feed con la foto ─────────────
+            r2 = requests.post(
+                f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/feed",
+                data={
+                    'message':           texto,
+                    'object_attachment': photo_id,
+                    'access_token':      META_TOKEN,
+                },
+                timeout=30
+            )
+            res2 = r2.json()
+
+            if 'id' in res2:
+                print(f"   ✅ Post publicado en Facebook: {res2['id']}")
+                return True
+            else:
+                print(f"   ❌ FB paso 2 falló: {json.dumps(res2)}")
+                if intento < intentos:
+                    time.sleep(5 * intento)
+
+        except requests.exceptions.Timeout:
+            print(f"   ⏱️  FB timeout en intento {intento}")
+            if intento < intentos:
+                time.sleep(5 * intento)
+        except Exception as e:
+            print(f"   💥 FB error inesperado: {e}")
+            if intento < intentos:
+                time.sleep(5 * intento)
+
+    print("   ❌ Facebook: todos los intentos fallaron")
+    return False
 
 def publicar_ig(url_imagen, texto):
     r1 = requests.post(
