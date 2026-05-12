@@ -1,3 +1,4 @@
+"""
 MUEBLES BOT - Chilenito Melaminero
 Sistema con fondo plantilla + PNG sin fondo desde GitHub
 # Fondo AZUL: letras BLANCAS
