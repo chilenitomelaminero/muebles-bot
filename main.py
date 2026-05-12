@@ -1,3 +1,4 @@
+ese código está muy corto agrega esos cambios a este codigo
 MUEBLES BOT - Chilenito Melaminero
 Sistema con fondo plantilla + PNG sin fondo desde GitHub
 - Fondo AZUL → letras BLANCAS
@@ -170,7 +171,7 @@ def descargar_mueble_github(nombre_archivo):
     return None
 
 # ─────────────────────────────────────────────
-# COMPOSICIÓN GRÁFICA (MODIFICADA SEGÚN TUS INDICACIONES)
+# COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def componer_pieza(fondo_info, imagen_mueble, titulo):
     W, H = 1080, 1080
@@ -181,59 +182,39 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     COLOR_CURSIVA = colores["cursiva"]
     COLOR_SOMBRA  = colores["sombra"]
 
-    # 1. Cargar fondo (SIN CAMBIOS, se mantiene tal cual)
+    # 1. Cargar fondo
     print("   🖼️  Cargando fondo...")
     fondo = Image.open(fondo_info["ruta"]).convert("RGBA").resize((W, H), Image.LANCZOS)
     canvas = Image.new("RGBA", (W, H))
     canvas.paste(fondo, (0, 0))
 
-    # 2. Imagen PNG del mueble → AJUSTADA PARA NO TAPAR LOGO NI WHATSAPP
+    # 2. Imagen mueble — GRANDE (70% del canvas)
     print("   🪑 Posicionando mueble...")
     mueble = imagen_mueble.convert("RGBA")
-    ancho_original, alto_original = mueble.size
-    proporcion = ancho_original / alto_original  # >1 = ancha ; <1 = alta
 
-    # 📏 ZONAS DEFINIDAS (LÍMITES QUE NO SE PUEDEN PASAR)
-    ZONA_SUPERIOR = int(H * 0.18)   # Espacio para título arriba
-    ZONA_INFERIOR = int(H * 0.82)   # 🚫 LÍMITE: hasta aquí llega el mueble (abajo queda 18% libre para logo y WhatsApp)
-    ZONA_ALTO_DISPONIBLE = ZONA_INFERIOR - ZONA_SUPERIOR
-    ZONA_ANCHO_DISPONIBLE = W
+    # Zona disponible: entre el área del título (arriba) y el WhatsApp/logo (abajo)
+    ZONA_SUPERIOR = int(H * 0.18)   # espacio para título arriba
+    ZONA_INFERIOR = H    # hasta el borde completo (logo está en el fondo)
+    ZONA_H = ZONA_INFERIOR - ZONA_SUPERIOR
 
-    # 📏 Ajuste de tamaño SEGÚN PROPORCIÓN de la imagen
-    if 0.7 <= proporcion <= 1.4:
-        # Imagen casi cuadrada → tamaño normal
-        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.97)
-        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.97)
-    elif proporcion < 0.7:
-        # Imagen MUY ALTA → reducimos ancho para que no se pase abajo
-        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.72)
-        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.92)
-    else:
-        # Imagen MUY ANCHA → reducimos alto para que no se pase abajo
-        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.97)
-        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.72)
-
-    # Escalar manteniendo proporción perfecta (NUNCA SE DEFORMA)
-    ratio = min(MAX_W / ancho_original, MAX_H / alto_original)
-    new_w = int(ancho_original * ratio)
-    new_h = int(alto_original * ratio)
+    # Escalar al 91% del ancho o alto disponible (+30% respecto al original)
+    MAX_W = int(W * 0.97)           # 91% del ancho  (era 70%)
+    MAX_H = int(ZONA_H * 0.99)      # 98% de la zona disponible (era 95%)
+    ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
+    new_w = int(mueble.width * ratio)
+    new_h = int(mueble.height * ratio)
     mueble = mueble.resize((new_w, new_h), Image.LANCZOS)
 
-    # Centrado DENTRO de los límites
+    # Centrar en la zona disponible
     mueble_x = (W - new_w) // 2
-    mueble_y = ZONA_SUPERIOR + (ZONA_ALTO_DISPONIBLE - new_h) // 2
-
-    # 🛡️ SEGURIDAD EXTRA: si por cálculo se pasa, lo ajustamos
-    if mueble_y + new_h > ZONA_INFERIOR:
-        mueble_y = ZONA_INFERIOR - new_h
-
+    mueble_y = ZONA_SUPERIOR + (ZONA_H - new_h) // 2
     canvas.paste(mueble, (mueble_x, mueble_y), mueble)
 
-    # Convertir a RGB para dibujar texto
+    # Convertir a RGB para texto
     canvas_rgb = canvas.convert("RGB")
     draw = ImageDraw.Draw(canvas_rgb)
 
-    # 3. Título grande centrado arriba (SIN CAMBIOS)
+    # 3. Título grande centrado arriba
     print(f"   ✍️  Título: {titulo} | Color: {COLOR_TITULO}")
     f_tit, tit_size = ajustar_tamano_fuente(titulo, FUENTE_TITULO, 120, W - 60)
     bbox_t = draw.textbbox((0, 0), titulo, font=f_tit)
@@ -242,22 +223,24 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     tit_x  = (W - tit_w) // 2
     tit_y  = 20
 
-    # Sombra y texto del título
+    # Sombra
     draw.text((tit_x + 3, tit_y + 3), titulo, font=f_tit, fill=COLOR_SOMBRA)
+    # Texto principal
     draw.text((tit_x, tit_y), titulo, font=f_tit, fill=COLOR_TITULO)
 
-    # 4. Cursiva "a medida" (SIN CAMBIOS)
+    # 4. Cursiva "a medida" — alineada a la derecha del título
     f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
     bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
     cur_w = bbox_c[2] - bbox_c[0]
     cur_x = tit_x + tit_w - cur_w + 10
     cur_y = tit_y + tit_h + 5
 
-    # Sombra y texto cursiva
+    # Sombra cursiva
     draw.text((cur_x + 2, cur_y + 2), "a medida", font=f_cur, fill=COLOR_SOMBRA)
+    # Cursiva
     draw.text((cur_x, cur_y), "a medida", font=f_cur, fill=COLOR_CURSIVA)
 
-    # Guardar imagen final
+    # Guardar
     ruta = "post_final.jpg"
     canvas_rgb.save(ruta, "JPEG", quality=97, subsampling=0)
     print("   ✅ Pieza guardada")
@@ -275,4 +258,216 @@ def subir_a_github(ruta):
     payload = {"message": f"Post {ts}", "content": content, "branch": "main"}
     r = requests.put(url, headers=headers, json=payload)
     if r.status_code in (200, 201):
-        return f"https://raw.githubusercontent.com/{GH_REPO}/main/imagenes_public
+        return f"https://raw.githubusercontent.com/{GH_REPO}/main/imagenes_publicadas/post_{ts}.jpg"
+    print(f"⚠️  GitHub upload falló: {r.status_code}")
+    return None
+
+# ─────────────────────────────────────────────
+# CAPTION
+# ─────────────────────────────────────────────
+def generar_caption(titulo, nombre_archivo):
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+
+    titulo_limpio  = titulo.title().replace(" ", "")
+    keyword_seo    = f"{titulo.title()} a medida Lima"   # keyword principal SEO
+
+    hashtags = (
+        f"#{titulo_limpio} #{titulo_limpio}AMedida "
+        f"#MueblesMelamina #MelaminaAMedida #MueblesSJL #MueblesLima "
+        f"#ElChilenitoMelaminero #OrganizacionHogar"
+    )
+
+    prompt = (
+        f"Eres el community manager de 'El Chilenito Melaminero', mueblista en SJL, Lima Perú. "
+        f"Escribe un post CORTO para Facebook e Instagram.\n\n"
+        f"REGLAS SEO:\n"
+        f"- La PRIMERA línea debe contener exactamente la keyword: '{keyword_seo}'\n"
+        f"- Úsala de forma natural, no forzada.\n\n"
+        f"ESTRUCTURA (respeta el orden, sin corchetes en la respuesta):\n"
+        f"1. Frase gancho que incluya '{keyword_seo}'.\n"
+        f"2. Máximo 3 características con emoji ✅ (las más relevantes del {titulo}).\n"
+        f"3. CTA exacto: '📲 Cotiza por WhatsApp {WHATSAPP_NUMERO}'\n"
+        f"4. Hashtags: {hashtags}\n\n"
+        f"Máximo 180 palabras. Español peruano natural. Solo el texto, sin explicaciones."
+    )
+
+    payload = {
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7,
+        "max_tokens": 400
+    }
+
+    r = requests.post(url, headers=headers, json=payload).json()
+    caption = r['choices'][0]['message']['content']
+    print(f"   ✅ Caption: {len(caption)} caracteres")
+    return caption
+
+# ─────────────────────────────────────────────
+# PUBLICACIÓN META
+# ─────────────────────────────────────────────
+def publicar_fb(ruta, texto):
+    print(f"\n   🔍 DEBUG Facebook:")
+    print(f"      FB_PAGE_ID: {FB_PAGE_ID[:10]}..." if FB_PAGE_ID else "      FB_PAGE_ID: NO CONFIGURADO")
+    print(f"      META_TOKEN: {'✅ Presente' if META_TOKEN else '❌ NO ENCONTRADO'}")
+
+    url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
+    print(f"      URL: {url}")
+
+    try:
+        with open(ruta, 'rb') as f:
+            r = requests.post(url,
+                data={'message': texto, 'access_token': META_TOKEN},
+                files={'source': f})
+
+        print(f"      Status: {r.status_code}")
+        response_json = r.json()
+        print(f"      Response: {response_json}")
+
+        ok = 'id' in response_json
+        if ok:
+            print(f"      ✅ Post ID: {response_json.get('id')}")
+        else:
+            print(f"      ❌ Error: {response_json.get('error', 'Desconocido')}")
+        return ok
+    except Exception as e:
+        print(f"      💥 Exception: {str(e)}")
+        return False
+
+def publicar_ig(url_imagen, texto):
+    print(f"\n   🔍 DEBUG Instagram:")
+    print(f"      IG_USER_ID: {IG_USER_ID[:10]}..." if IG_USER_ID else "      IG_USER_ID: NO CONFIGURADO")
+    print(f"      META_TOKEN: {'✅ Presente' if META_TOKEN else '❌ NO ENCONTRADO'}")
+    print(f"      Image URL: {url_imagen[:50]}..." if url_imagen else "      Image URL: NO DISPONIBLE")
+
+    try:
+        print(f"\n      📤 Creando contenedor de media...")
+        r1 = requests.post(
+            f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media",
+            data={'image_url': url_imagen, 'caption': texto, 'access_token': META_TOKEN}
+        ).json()
+
+        print(f"      Response: {r1}")
+        c_id = r1.get('id')
+
+        if not c_id:
+            print(f"      ❌ Error creando contenedor: {r1.get('error', 'Desconocido')}")
+            return False
+
+        print(f"      ✅ Container ID: {c_id}")
+        print(f"\n      ⏳ Esperando 15 segundos antes de publicar...")
+        time.sleep(15)
+
+        print(f"      📤 Publicando media...")
+        r2 = requests.post(
+            f"https://graph.facebook.com/v21.0/{IG_USER_ID}/media_publish",
+            data={'creation_id': c_id, 'access_token': META_TOKEN}
+        ).json()
+
+        print(f"      Response: {r2}")
+        ok = 'id' in r2
+
+        if ok:
+            print(f"      ✅ Post ID: {r2.get('id')}")
+        else:
+            print(f"      ❌ Error publicando: {r2.get('error', 'Desconocido')}")
+
+        return ok
+    except Exception as e:
+        print(f"      💥 Exception: {str(e)}")
+        return False
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+def main():
+    print("=" * 70)
+    print("  🚀 MUEBLES BOT - Chilenito Melaminero")
+    print("=" * 70)
+
+    # ─────── DEBUG ZONA HORARIA ───────
+    utc_tz = pytz.timezone('UTC')
+    lima_tz = pytz.timezone('America/Lima')
+
+    utc_now = datetime.now(utc_tz)
+    lima_now = datetime.now(lima_tz)
+
+    print(f"\n⏰ VERIFICACIÓN DE HORA:")
+    print(f"   🌍 UTC:  {utc_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print(f"   🇵🇪 Lima: {lima_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+    # Control de horario: solo se salta si está en cronjob automático
+    es_automatico = os.environ.get("GITHUB_EVENT_NAME") == "schedule"
+
+    if es_automatico and lima_now.hour != 9:
+        print(f"\n⏭️  SALTANDO - NO ES LA HORA AUTOMÁTICA")
+        print(f"   Hora actual: {lima_now.strftime('%H:%M')}")
+        print(f"   Horario automático: 09:00-09:59 AM Lima")
+        print(f"   Próxima ejecución: mañana a las 9:00 AM")
+        return
+
+    if not es_automatico:
+        print(f"\n✅ EJECUCIÓN MANUAL - Procediendo (ignorando horario automático)")
+    else:
+        print(f"\n✅ HORA CORRECTA - Procediendo con publicación")
+
+    try:
+        # 1. Elegir fondo del día
+        print("\n🎨 Eligiendo fondo del día...")
+        fondo_info = elegir_fondo_del_dia()
+
+        # 2. Listar y elegir mueble del día
+        print("\n📂 Listando muebles...")
+        archivos = listar_muebles_github()
+        if not archivos:
+            print("❌ No hay imágenes en muebles_sin_fondo")
+            return
+
+        nombre_hoy = elegir_imagen_del_dia(archivos)
+        titulo = nombre_a_titulo(nombre_hoy)
+        print(f"\n📅 Mueble del día: {nombre_hoy}")
+        print(f"   🏷️  Título: {titulo}")
+
+        # 3. Descargar imagen
+        print(f"\n⬇️  Descargando {nombre_hoy}...")
+        imagen_mueble = descargar_mueble_github(nombre_hoy)
+        if not imagen_mueble:
+            return
+        print("   ✅ Descargada")
+
+        # 4. Componer
+        print("\n🎨 Componiendo pieza gráfica...")
+        ruta = componer_pieza(fondo_info, imagen_mueble, titulo)
+
+        # 5. Subir a GitHub
+        print("\n📤 Subiendo a GitHub...")
+        url_p = subir_a_github(ruta)
+
+        # 6. Caption
+        print("\n✍️  Generando caption...")
+        caption = generar_caption(titulo, nombre_hoy)
+
+        # 7. Publicar
+        print("\n📘 Publicando en Facebook...")
+        f_ok = publicar_fb(ruta, caption)
+
+        print("\n📸 Publicando en Instagram...")
+        i_ok = publicar_ig(url_p, caption) if url_p else False
+
+        print(f"\n{'='*70}")
+        print(f"  ✅ Facebook:  {'✅ PUBLICADO' if f_ok else '❌ FALLÓ'}")
+        print(f"  ✅ Instagram: {'✅ PUBLICADO' if i_ok else '❌ FALLÓ'}")
+        print(f"  📦 Mueble:    {nombre_hoy}")
+        print(f"  🏷️  Título:    {titulo}")
+        print(f"  🎨 Fondo:     {fondo_info['tipo']}")
+        print(f"{'='*70}")
+
+    except Exception as e:
+        print(f"\n💥 Error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+if __name__ == "__main__":
+    main()
