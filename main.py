@@ -12,7 +12,8 @@ import base64
 import requests
 import time
 import hashlib
-from datetime import datetime
+import pytz
+from datetime import datetime, time as dt_time
 from PIL import Image, ImageDraw, ImageFont
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
@@ -28,7 +29,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GH_TOKEN     = os.environ.get("GH_TOKEN")
 GH_REPO      = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-bot")
 
-# FONDOS DISPONIBLES — agrega más cuando tengas más fondos
+# FONDOS DISPONIBLES
 FONDOS = [
     {"ruta": "plantilla/FD_AZUL.png",         "tipo": "azul"},
     {"ruta": "plantilla/FD_BLANCO.png",        "tipo": "blanco"},
@@ -295,7 +296,7 @@ def generar_caption(titulo, nombre_archivo):
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
-        "max_tokens": 400        # era 900 — reducido para forzar brevedad
+        "max_tokens": 400
     }
 
     r = requests.post(url, headers=headers, json=payload).json()
@@ -338,9 +339,30 @@ def publicar_ig(url_imagen, texto):
 # MAIN
 # ─────────────────────────────────────────────
 def main():
-    print("=" * 60)
+    print("=" * 70)
     print("  🚀 MUEBLES BOT - Chilenito Melaminero")
-    print("=" * 60)
+    print("=" * 70)
+
+    # ─────── DEBUG ZONA HORARIA ───────
+    utc_tz = pytz.timezone('UTC')
+    lima_tz = pytz.timezone('America/Lima')
+    
+    utc_now = datetime.now(utc_tz)
+    lima_now = datetime.now(lima_tz)
+    
+    print(f"\n⏰ VERIFICACIÓN DE HORA:")
+    print(f"   🌍 UTC:  {utc_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print(f"   🇵🇪 Lima: {lima_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    
+    # Solo ejecutar entre 9:00-9:59 AM Lima
+    if lima_now.hour != 9:
+        print(f"\n⏭️  SALTANDO EJECUCIÓN")
+        print(f"   Hora actual: {lima_now.strftime('%H:%M')}")
+        print(f"   Horario permitido: 09:00-09:59 AM Lima")
+        print(f"   Próxima ejecución: mañana a las 9:00 AM")
+        return
+    
+    print(f"\n✅ HORA CORRECTA - Procediendo con publicación")
 
     try:
         # 1. Elegir fondo del día
@@ -385,13 +407,13 @@ def main():
         print("\n📸 Publicando en Instagram...")
         i_ok = publicar_ig(url_p, caption) if url_p else False
 
-        print(f"\n{'='*60}")
-        print(f"  Facebook:  {'✅' if f_ok else '❌'}")
-        print(f"  Instagram: {'✅' if i_ok else '❌'}")
-        print(f"  Mueble:    {nombre_hoy}")
-        print(f"  Título:    {titulo}")
-        print(f"  Fondo:     {fondo_info['tipo']}")
-        print(f"{'='*60}")
+        print(f"\n{'='*70}")
+        print(f"  ✅ Facebook:  {'✅ PUBLICADO' if f_ok else '❌ FALLÓ'}")
+        print(f"  ✅ Instagram: {'✅ PUBLICADO' if i_ok else '❌ FALLÓ'}")
+        print(f"  📦 Mueble:    {nombre_hoy}")
+        print(f"  🏷️  Título:    {titulo}")
+        print(f"  🎨 Fondo:     {fondo_info['tipo']}")
+        print(f"{'='*70}")
 
     except Exception as e:
         print(f"\n💥 Error: {e}")
