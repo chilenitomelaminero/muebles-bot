@@ -170,7 +170,7 @@ def descargar_mueble_github(nombre_archivo):
     print(f"   ❌ Error {r.status_code} descargando {nombre_archivo}")
     return None
 
-# ─────────────────────────────────────────────
+# ────────────────────────────────────────────���
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def componer_pieza(fondo_info, imagen_mueble, titulo):
@@ -188,24 +188,30 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     canvas = Image.new("RGBA", (W, H))
     canvas.paste(fondo, (0, 0))
 
-    # 2. Imagen mueble — GRANDE (70% del canvas)
+    # 2. Imagen mueble — TAMAÑO UNIFORME Y REDUCIDO
     print("   🪑 Posicionando mueble...")
     mueble = imagen_mueble.convert("RGBA")
 
     # Zona disponible: entre el área del título (arriba) y el WhatsApp/logo (abajo)
-    ZONA_SUPERIOR = int(H * 0.18)   # espacio para título arriba
-    ZONA_INFERIOR = H    # hasta el borde completo (logo está en el fondo)
-    ZONA_H = ZONA_INFERIOR - ZONA_SUPERIOR
+    ZONA_SUPERIOR = int(H * 0.18)   # espacio para título arriba (18%)
+    ZONA_INFERIOR = int(H * 0.15)   # espacio reservado abajo para logo + WhatsApp (15%)
+    ZONA_H = H - ZONA_SUPERIOR - ZONA_INFERIOR
 
-    # Escalar al 91% del ancho o alto disponible (+30% respecto al original)
-    MAX_W = int(W * 0.97)           # 91% del ancho  (era 70%)
-    MAX_H = int(ZONA_H * 0.99)      # 98% de la zona disponible (era 95%)
+    # ✅ TAMAÑO MÁXIMO UNIFORME REDUCIDO:
+    # - 60% del ancho disponible (antes era 97%)
+    # - 70% de la zona disponible (antes era 99%)
+    # Esto asegura que TODAS las imágenes tengan el mismo tamaño máximo
+    # sin importar su proporción original
+    MAX_W = int(W * 0.60)           # 60% del ancho
+    MAX_H = int(ZONA_H * 0.70)      # 70% de la zona central
+    
+    # Aplicar el menor ratio para mantener proporción original
     ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
     new_w = int(mueble.width * ratio)
     new_h = int(mueble.height * ratio)
     mueble = mueble.resize((new_w, new_h), Image.LANCZOS)
 
-    # Centrar en la zona disponible
+    # Centrar horizontalmente y verticalmente en la zona disponible
     mueble_x = (W - new_w) // 2
     mueble_y = ZONA_SUPERIOR + (ZONA_H - new_h) // 2
     canvas.paste(mueble, (mueble_x, mueble_y), mueble)
