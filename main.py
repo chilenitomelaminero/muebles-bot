@@ -3,7 +3,6 @@ MUEBLES BOT - Chilenito Melaminero
 Sistema con fondo plantilla + PNG sin fondo desde GitHub
 - Fondo AZUL → letras BLANCAS
 - Fondo BLANCO → letras AZULES
-- Imagen mueble grande (70% del canvas)
 """
 
 import os
@@ -33,7 +32,6 @@ GH_REPO      = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-
 FONDOS = [
     {"ruta": "plantilla/FD_AZUL.png",         "tipo": "azul"},
     {"ruta": "plantilla/FD_BLANCO.png",        "tipo": "blanco"},
-    {"ruta": "plantilla/FD_TRANPARENTE.png",   "tipo": "transparente"},
 ]
 
 RUTA_MUEBLES   = "muebles_sin_fondo"
@@ -44,7 +42,6 @@ FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
 COLORES_POR_FONDO = {
     "azul":         {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
     "blanco":       {"titulo": (0, 56, 159),    "cursiva": (0, 56, 159),   "sombra": (200, 200, 200)},
-    "transparente": {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
 }
 
 WHATSAPP_NUMERO = "+51 903 427 486"
