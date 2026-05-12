@@ -10,45 +10,52 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     COLOR_CURSIVA = colores["cursiva"]
     COLOR_SOMBRA  = colores["sombra"]
 
-    # 1. Cargar fondo (SIN CAMBIOS, se mantiene igual)
+    # 1. Cargar fondo (SIN CAMBIOS)
     print("   🖼️  Cargando fondo...")
     fondo = Image.open(fondo_info["ruta"]).convert("RGBA").resize((W, H), Image.LANCZOS)
     canvas = Image.new("RGBA", (W, H))
     canvas.paste(fondo, (0, 0))
 
-    # 2. Imagen PNG del mueble → SOLO AQUÍ SE AJUSTAN PROPORCIONES
+    # 2. Imagen PNG del mueble → AJUSTADA PARA NO TAPAR LOGO/WHATSAPP
     print("   🪑 Posicionando mueble...")
     mueble = imagen_mueble.convert("RGBA")
     ancho_original, alto_original = mueble.size
-    proporcion = ancho_original / alto_original  # >1 = ancha ; <1 = alta
+    proporcion = ancho_original / alto_original
 
-    # Zona disponible (igual que tenías antes)
-    ZONA_SUPERIOR = int(H * 0.18)
-    ZONA_ALTO = H - ZONA_SUPERIOR
+    # 📏 ZONAS DEFINIDAS:
+    ZONA_SUPERIOR = int(H * 0.18)   # Espacio para título arriba
+    ZONA_INFERIOR = int(H * 0.82)    # 🚫 LÍMITE INFERIOR: no pasa de aquí (deja abajo el 18% para logo y WhatsApp)
+    ZONA_ALTO_DISPONIBLE = ZONA_INFERIOR - ZONA_SUPERIOR
+    ZONA_ANCHO_DISPONIBLE = W
 
-    # 📏 Ajuste de proporciones SOLO para esta imagen
+    # 📏 Ajuste de proporciones SOLO para el mueble
     if 0.7 <= proporcion <= 1.4:
-        # Casi cuadrada → tamaño normal
-        MAX_W = int(W * 0.97)
-        MAX_H = int(ZONA_ALTO * 0.99)
+        # Casi cuadrada
+        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.97)
+        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.97)
     elif proporcion < 0.7:
-        # Muy ALTA → hacemos que sea más angosta para que no se vea gigante
-        MAX_W = int(W * 0.70)
-        MAX_H = int(ZONA_ALTO * 0.97)
+        # Muy ALTA → reducimos más el alto para que no se pase abajo
+        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.72)
+        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.92)
     else:
-        # Muy ANCHA → hacemos que sea más baja para que no se deforme
-        MAX_W = int(W * 0.97)
-        MAX_H = int(ZONA_ALTO * 0.70)
+        # Muy ANCHA → reducimos alto
+        MAX_W = int(ZONA_ANCHO_DISPONIBLE * 0.97)
+        MAX_H = int(ZONA_ALTO_DISPONIBLE * 0.72)
 
-    # Escalar manteniendo proporción perfecta
+    # Escalar manteniendo proporción, SIN DEFORMAR
     ratio = min(MAX_W / ancho_original, MAX_H / alto_original)
     new_w = int(ancho_original * ratio)
     new_h = int(alto_original * ratio)
     mueble = mueble.resize((new_w, new_h), Image.LANCZOS)
 
-    # Centrado (igual que siempre)
+    # Centrado perfecto DENTRO de la zona permitida
     mueble_x = (W - new_w) // 2
-    mueble_y = ZONA_SUPERIOR + (ZONA_ALTO - new_h) // 2
+    mueble_y = ZONA_SUPERIOR + (ZONA_ALTO_DISPONIBLE - new_h) // 2
+
+    # Seguridad extra: nunca se pasa del límite inferior
+    if mueble_y + new_h > ZONA_INFERIOR:
+        mueble_y = ZONA_INFERIOR - new_h
+
     canvas.paste(mueble, (mueble_x, mueble_y), mueble)
 
     # Convertir a RGB para texto
