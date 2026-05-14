@@ -2,7 +2,7 @@ name: Publicador Muebles Bot
 on:
   workflow_dispatch:
   schedule:
-    # Cada 5 min entre 9:00-9:59 AM Lima (14:00-14:59 UTC)
+    # Cada día a las 9:00 AM Lima (14:00 UTC)
     - cron: '0 14 * * *'
 
 jobs:
