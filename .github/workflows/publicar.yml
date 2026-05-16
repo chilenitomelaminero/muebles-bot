@@ -1,22 +1,24 @@
 name: Publicador Muebles Bot
+ 
 on:
   workflow_dispatch:
   schedule:
-    # Cada día a las 9:00 AM Lima (14:00 UTC)
+    # Cada día a las 9:00 AM Lima (UTC-5 = 14:00 UTC)
     - cron: '0 14 * * *'
-
+ 
 jobs:
   publicar:
     runs-on: ubuntu-latest
+ 
     steps:
       - name: Descargar código
         uses: actions/checkout@v4
-      
+ 
       - name: Instalar Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+ 
       - name: Instalar dependencias
         run: |
           pip install requests
@@ -24,11 +26,16 @@ jobs:
           pip install google-api-python-client
           pip install google-auth
           pip install pytz
-      
+ 
       - name: Verificar zona horaria
         run: |
-          python -c "from datetime import datetime; import pytz; lima_tz = pytz.timezone('America/Lima'); print(f'⏰ Hora actual Lima: {datetime.now(lima_tz).strftime(\"%Y-%m-%d %H:%M:%S %Z\")}')"
-      
+          python -c "
+          from datetime import datetime
+          import pytz
+          lima_tz = pytz.timezone('America/Lima')
+          print(f'⏰ Hora actual Lima: {datetime.now(lima_tz).strftime(\"%Y-%m-%d %H:%M:%S %Z\")}')
+          "
+ 
       - name: Publicar en Facebook e Instagram
         env:
           META_TOKEN: ${{ secrets.META_TOKEN }}
@@ -37,5 +44,4 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GDRIVE_CREDENTIALS: ${{ secrets.GDRIVE_CREDENTIALS }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python main.py
