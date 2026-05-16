@@ -31,8 +31,8 @@ GH_REPO      = os.environ.get("GITHUB_REPOSITORY", "chilenitomelaminero/muebles-
 
 # FONDOS DISPONIBLES
 FONDOS = [
-    {"ruta": "plantilla/FD_AZUL.png",         "tipo": "azul"},
-    {"ruta": "plantilla/FD_BLANCO.png",        "tipo": "blanco"},
+    {"ruta": "plantilla/FD_AZUL.png",  "tipo": "azul"},
+    {"ruta": "plantilla/FD_BLANCO.png", "tipo": "blanco"},
 ]
 
 RUTA_MUEBLES   = "muebles_sin_fondo"
@@ -41,8 +41,8 @@ FUENTE_CURSIVA = "fonts/GreatVibes-Regular.ttf"
 
 # COLORES según tipo de fondo
 COLORES_POR_FONDO = {
-    "azul":         {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
-    "blanco":       {"titulo": (0, 56, 159),    "cursiva": (0, 56, 159),   "sombra": (200, 200, 200)},
+    "azul":   {"titulo": (255, 255, 255), "cursiva": (255, 220, 0),  "sombra": (0, 0, 0)},
+    "blanco": {"titulo": (0, 56, 159),    "cursiva": (0, 56, 159),   "sombra": (200, 200, 200)},
 }
 
 WHATSAPP_NUMERO = "+51 903 427 486"
@@ -143,7 +143,6 @@ def elegir_fondo_del_dia():
 def elegir_imagen_del_dia(lista_archivos):
     """Imagen diferente cada día."""
     hoy = datetime.now().strftime("%Y%m%d")
-    # Semilla diferente a la del fondo para que no siempre coincidan igual
     semilla = int(hashlib.md5((hoy + "mueble").encode()).hexdigest(), 16)
     indice = semilla % len(lista_archivos)
     return lista_archivos[indice]
@@ -170,13 +169,12 @@ def descargar_mueble_github(nombre_archivo):
     print(f"   ❌ Error {r.status_code} descargando {nombre_archivo}")
     return None
 
-# ───────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def componer_pieza(fondo_info, imagen_mueble, titulo):
     W, H = 1080, 1080
 
-    # Colores según tipo de fondo
     colores = COLORES_POR_FONDO.get(fondo_info["tipo"], COLORES_POR_FONDO["azul"])
     COLOR_TITULO  = colores["titulo"]
     COLOR_CURSIVA = colores["cursiva"]
@@ -188,39 +186,30 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     canvas = Image.new("RGBA", (W, H))
     canvas.paste(fondo, (0, 0))
 
-    # 2. Imagen mueble — TAMAÑO UNIFORME Y REDUCIDO
+    # 2. Imagen mueble
     print("   🪑 Posicionando mueble...")
     mueble = imagen_mueble.convert("RGBA")
 
-    # Zona disponible: entre el área del título (arriba) y el WhatsApp/logo (abajo)
-    ZONA_SUPERIOR = int(H * 0.18)   # espacio para título arriba (18%)
-    ZONA_INFERIOR = int(H * 0.15)   # espacio reservado abajo para logo + WhatsApp (15%)
+    ZONA_SUPERIOR = int(H * 0.18)
+    ZONA_INFERIOR = int(H * 0.15)
     ZONA_H = H - ZONA_SUPERIOR - ZONA_INFERIOR
 
-    # ✅ TAMAÑO MÁXIMO UNIFORME REDUCIDO:
-    # - 60% del ancho disponible (antes era 97%)
-    # - 70% de la zona disponible (antes era 99%)
-    # Esto asegura que TODAS las imágenes tengan el mismo tamaño máximo
-    # sin importar su proporción original
-    MAX_W = int(W * 0.60)           # 60% del ancho
-    MAX_H = int(ZONA_H * 0.70)      # 70% de la zona central
-    
-    # Aplicar el menor ratio para mantener proporción original
+    MAX_W = int(W * 0.60)
+    MAX_H = int(ZONA_H * 0.70)
+
     ratio = min(MAX_W / mueble.width, MAX_H / mueble.height)
     new_w = int(mueble.width * ratio)
     new_h = int(mueble.height * ratio)
     mueble = mueble.resize((new_w, new_h), Image.LANCZOS)
 
-    # Centrar horizontalmente y verticalmente en la zona disponible
     mueble_x = (W - new_w) // 2
     mueble_y = ZONA_SUPERIOR + (ZONA_H - new_h) // 2
     canvas.paste(mueble, (mueble_x, mueble_y), mueble)
 
-    # Convertir a RGB para texto
     canvas_rgb = canvas.convert("RGB")
     draw = ImageDraw.Draw(canvas_rgb)
 
-    # 3. Título grande centrado arriba
+    # 3. Título
     print(f"   ✍️  Título: {titulo} | Color: {COLOR_TITULO}")
     f_tit, tit_size = ajustar_tamano_fuente(titulo, FUENTE_TITULO, 120, W - 60)
     bbox_t = draw.textbbox((0, 0), titulo, font=f_tit)
@@ -229,24 +218,19 @@ def componer_pieza(fondo_info, imagen_mueble, titulo):
     tit_x  = (W - tit_w) // 2
     tit_y  = 20
 
-    # Sombra
     draw.text((tit_x + 3, tit_y + 3), titulo, font=f_tit, fill=COLOR_SOMBRA)
-    # Texto principal
     draw.text((tit_x, tit_y), titulo, font=f_tit, fill=COLOR_TITULO)
 
-    # 4. Cursiva "a medida" — alineada a la derecha del título
+    # 4. Cursiva "a medida"
     f_cur = cargar_fuente(FUENTE_CURSIVA, 85)
     bbox_c = draw.textbbox((0, 0), "a medida", font=f_cur)
     cur_w = bbox_c[2] - bbox_c[0]
     cur_x = tit_x + tit_w - cur_w + 10
     cur_y = tit_y + tit_h + 5
 
-    # Sombra cursiva
     draw.text((cur_x + 2, cur_y + 2), "a medida", font=f_cur, fill=COLOR_SOMBRA)
-    # Cursiva
     draw.text((cur_x, cur_y), "a medida", font=f_cur, fill=COLOR_CURSIVA)
 
-    # Guardar
     ruta = "post_final.jpg"
     canvas_rgb.save(ruta, "JPEG", quality=97, subsampling=0)
     print("   ✅ Pieza guardada")
@@ -265,7 +249,7 @@ def subir_a_github(ruta):
     r = requests.put(url, headers=headers, json=payload)
     if r.status_code in (200, 201):
         return f"https://raw.githubusercontent.com/{GH_REPO}/main/imagenes_publicadas/post_{ts}.jpg"
-    print(f"⚠️  GitHub upload falló: {r.status_code}")
+    print(f"⚠️  GitHub upload falló: {r.status_code} - {r.text}")
     return None
 
 # ─────────────────────────────────────────────
@@ -275,8 +259,8 @@ def generar_caption(titulo, nombre_archivo):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
 
-    titulo_limpio  = titulo.title().replace(" ", "")
-    keyword_seo    = f"{titulo.title()} a medida Lima"   # keyword principal SEO
+    titulo_limpio = titulo.title().replace(" ", "")
+    keyword_seo   = f"{titulo.title()} a medida Lima"
 
     hashtags = (
         f"#{titulo_limpio} #{titulo_limpio}AMedida "
@@ -315,11 +299,10 @@ def generar_caption(titulo, nombre_archivo):
 # ─────────────────────────────────────────────
 def publicar_fb(ruta, texto):
     print(f"\n   🔍 DEBUG Facebook:")
-    print(f"      FB_PAGE_ID: {FB_PAGE_ID[:10]}..." if FB_PAGE_ID else "      FB_PAGE_ID: NO CONFIGURADO")
+    print(f"      FB_PAGE_ID: {FB_PAGE_ID[:10]}..." if FB_PAGE_ID else "      FB_PAGE_ID: ❌ NO CONFIGURADO")
     print(f"      META_TOKEN: {'✅ Presente' if META_TOKEN else '❌ NO ENCONTRADO'}")
 
     url = f"https://graph.facebook.com/v21.0/{FB_PAGE_ID}/photos"
-    print(f"      URL: {url}")
 
     try:
         with open(ruta, 'rb') as f:
@@ -343,9 +326,9 @@ def publicar_fb(ruta, texto):
 
 def publicar_ig(url_imagen, texto):
     print(f"\n   🔍 DEBUG Instagram:")
-    print(f"      IG_USER_ID: {IG_USER_ID[:10]}..." if IG_USER_ID else "      IG_USER_ID: NO CONFIGURADO")
+    print(f"      IG_USER_ID: {IG_USER_ID[:10]}..." if IG_USER_ID else "      IG_USER_ID: ❌ NO CONFIGURADO")
     print(f"      META_TOKEN: {'✅ Presente' if META_TOKEN else '❌ NO ENCONTRADO'}")
-    print(f"      Image URL: {url_imagen[:50]}..." if url_imagen else "      Image URL: NO DISPONIBLE")
+    print(f"      Image URL: {url_imagen[:50]}..." if url_imagen else "      Image URL: ❌ NO DISPONIBLE")
 
     try:
         print(f"\n      📤 Creando contenedor de media...")
@@ -392,36 +375,19 @@ def main():
     print("  🚀 MUEBLES BOT - Chilenito Melaminero")
     print("=" * 70)
 
-    # ─────── DEBUG ZONA HORARIA ───────
-    utc_tz = pytz.timezone('UTC')
+    # Info de hora y tipo de ejecución (solo informativo, sin filtro)
     lima_tz = pytz.timezone('America/Lima')
-
-    utc_now = datetime.now(utc_tz)
     lima_now = datetime.now(lima_tz)
+    evento   = os.environ.get("GITHUB_EVENT_NAME", "desconocido")
 
-    print(f"\n⏰ VERIFICACIÓN DE HORA:")
-    print(f"   🌍 UTC:  {utc_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    print(f"   🇵🇪 Lima: {lima_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-
-    # Control de horario: solo se salta si está en cronjob automático
-    es_automatico = os.environ.get("GITHUB_EVENT_NAME") == "schedule"
-
-    # ✅ RANGO DE HORARIOS: entre 08:00 y 10:59 (9:00 AM con margen de tolerancia)
-    if es_automatico and not (8 <= lima_now.hour < 11):
-        print(f"\n⏭️  SALTANDO - NO ES LA HORA AUTOMÁTICA")
-        print(f"   Hora actual: {lima_now.strftime('%H:%M')}")
-        print(f"   Horario permitido: 08:00-10:59 AM Lima")
-        print(f"   Próxima ejecución: mañana en ese rango horario")
-        return
-
-    if not es_automatico:
-        print(f"\n✅ EJECUCIÓN MANUAL - Procediendo (ignorando horario automático)")
-    else:
-        print(f"\n✅ HORA CORRECTA ({lima_now.strftime('%H:%M')}) - Procediendo con publicación")
+    print(f"\n⏰ Hora Lima: {lima_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+    print(f"   Tipo de ejecución: {evento}")
+    print(f"   Procediendo con publicación...\n")
+    # ✅ Sin filtro de hora — el cron del workflow.yml ya controla el horario
 
     try:
         # 1. Elegir fondo del día
-        print("\n🎨 Eligiendo fondo del día...")
+        print("🎨 Eligiendo fondo del día...")
         fondo_info = elegir_fondo_del_dia()
 
         # 2. Listar y elegir mueble del día
@@ -463,11 +429,11 @@ def main():
         i_ok = publicar_ig(url_p, caption) if url_p else False
 
         print(f"\n{'='*70}")
-        print(f"  ✅ Facebook:  {'✅ PUBLICADO' if f_ok else '❌ FALLÓ'}")
-        print(f"  ✅ Instagram: {'✅ PUBLICADO' if i_ok else '❌ FALLÓ'}")
-        print(f"  📦 Mueble:    {nombre_hoy}")
-        print(f"  🏷️  Título:    {titulo}")
-        print(f"  🎨 Fondo:     {fondo_info['tipo']}")
+        print(f"  Facebook:  {'✅ PUBLICADO' if f_ok else '❌ FALLÓ'}")
+        print(f"  Instagram: {'✅ PUBLICADO' if i_ok else '❌ FALLÓ'}")
+        print(f"  📦 Mueble: {nombre_hoy}")
+        print(f"  🏷️  Título: {titulo}")
+        print(f"  🎨 Fondo:  {fondo_info['tipo']}")
         print(f"{'='*70}")
 
     except Exception as e:
