@@ -170,7 +170,7 @@ def descargar_mueble_github(nombre_archivo):
     print(f"   ❌ Error {r.status_code} descargando {nombre_archivo}")
     return None
 
-# ────────────────────────────────────────────���
+# ───────────────────────────────────────────────
 # COMPOSICIÓN GRÁFICA
 # ─────────────────────────────────────────────
 def componer_pieza(fondo_info, imagen_mueble, titulo):
@@ -406,17 +406,18 @@ def main():
     # Control de horario: solo se salta si está en cronjob automático
     es_automatico = os.environ.get("GITHUB_EVENT_NAME") == "schedule"
 
-    if es_automatico and lima_now.hour != 9:
+    # ✅ RANGO DE HORARIOS: entre 08:00 y 10:59 (9:00 AM con margen de tolerancia)
+    if es_automatico and not (8 <= lima_now.hour < 11):
         print(f"\n⏭️  SALTANDO - NO ES LA HORA AUTOMÁTICA")
         print(f"   Hora actual: {lima_now.strftime('%H:%M')}")
-        print(f"   Horario automático: 09:00-09:59 AM Lima")
-        print(f"   Próxima ejecución: mañana a las 9:00 AM")
+        print(f"   Horario permitido: 08:00-10:59 AM Lima")
+        print(f"   Próxima ejecución: mañana en ese rango horario")
         return
 
     if not es_automatico:
         print(f"\n✅ EJECUCIÓN MANUAL - Procediendo (ignorando horario automático)")
     else:
-        print(f"\n✅ HORA CORRECTA - Procediendo con publicación")
+        print(f"\n✅ HORA CORRECTA ({lima_now.strftime('%H:%M')}) - Procediendo con publicación")
 
     try:
         # 1. Elegir fondo del día
